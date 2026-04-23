@@ -34,3 +34,17 @@ it('converts tables.docx into a 2x2 <table>', function (): void {
         .'<p>Below</p>',
     );
 });
+
+it('converts tiny-picture.docx into a paragraph with an embedded data-URI <img>', function (): void {
+    $result = (new Converter())->convertToHtml(fixture('tiny-picture.docx'));
+
+    $zip = new ZipArchive();
+    $zip->open(fixture('tiny-picture.docx'));
+    $imageBytes = $zip->getFromName('word/media/image1.png');
+    $zip->close();
+
+    expect($imageBytes)->not->toBeFalse();
+    $expectedSrc = 'data:image/png;base64,'.base64_encode((string) $imageBytes);
+
+    expect($result->value)->toBe('<p><img src="'.$expectedSrc.'" /></p>');
+});

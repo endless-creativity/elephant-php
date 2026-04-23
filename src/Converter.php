@@ -8,6 +8,8 @@ namespace EndlessCreativity\ElephantPhp;
 
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
+use EndlessCreativity\ElephantPhp\Reader\ContentTypes;
+use EndlessCreativity\ElephantPhp\Reader\ContentTypesReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
 use EndlessCreativity\ElephantPhp\Reader\Numbering;
 use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
@@ -74,11 +76,24 @@ final class Converter
             ))
             : Numbering::default();
 
+        $contentTypes = $zip->exists('[Content_Types].xml')
+            ? ContentTypesReader::readFromXml(XmlReader::readString(
+                self::stripUtf8Bom($zip->read('[Content_Types].xml')),
+                self::OFFICE_XML_NAMESPACE_MAP,
+            ))
+            : ContentTypes::default();
+
         $documentXml = self::stripUtf8Bom($zip->read('word/document.xml'));
         $documentElement = XmlReader::readString($documentXml, self::OFFICE_XML_NAMESPACE_MAP);
 
         $documentResult = (new DocumentXmlReader(
-            new BodyReader(styles: $styles, relationships: $relationships, numbering: $numbering),
+            new BodyReader(
+                styles: $styles,
+                relationships: $relationships,
+                numbering: $numbering,
+                contentTypes: $contentTypes,
+                imageReader: static fn (string $path): string => $zip->read($path),
+            ),
         ))->convertXmlToDocument($documentElement);
 
         $htmlResult = (new DocumentConverter())->convertToHtml($documentResult->value);

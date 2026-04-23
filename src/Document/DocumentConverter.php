@@ -12,8 +12,11 @@ use EndlessCreativity\ElephantPhp\Html\Node as HtmlNode;
 use EndlessCreativity\ElephantPhp\Html\Simplifier;
 use EndlessCreativity\ElephantPhp\Html\Tag;
 use EndlessCreativity\ElephantPhp\Html\Text as HtmlText;
+use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
+use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Message;
 use EndlessCreativity\ElephantPhp\Result;
+use Throwable;
 
 final class DocumentConverter
 {
@@ -41,6 +44,10 @@ final class DocumentConverter
         ['styleId' => 'Heading', 'tag' => 'h1'],
         ['styleName' => 'Heading', 'tag' => 'h1'],
     ];
+
+    public function __construct(private readonly ImageHandler $imageHandler = new DataUriImageHandler())
+    {
+    }
 
     /**
      * @return Result<string>
@@ -114,11 +121,37 @@ final class DocumentConverter
             )];
         }
 
+        if ($node instanceof Image) {
+            return $this->convertImage($node, $messages);
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }
 
         return [];
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlNode>
+     */
+    private function convertImage(Image $image, array &$messages): array
+    {
+        try {
+            $attributes = $this->imageHandler->attributes($image);
+        } catch (Throwable $error) {
+            $messages[] = Message::error($error->getMessage());
+
+            return [];
+        }
+
+        if ($image->altText !== null && ! isset($attributes['alt'])) {
+            $attributes = ['alt' => $image->altText] + $attributes;
+        }
+
+        return [new HtmlElement(tag: new Tag(tagName: 'img', attributes: $attributes))];
     }
 
     /**

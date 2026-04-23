@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Reader;
 
+use Closure;
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
+use EndlessCreativity\ElephantPhp\Document\Image;
 use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
 use EndlessCreativity\ElephantPhp\Document\NumberingLevel;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
@@ -23,6 +25,15 @@ use EndlessCreativity\ElephantPhp\Result;
 
 final class BodyReader
 {
+    /** @var array<string, true> */
+    private const SUPPORTED_IMAGE_TYPES = [
+        'image/png' => true,
+        'image/gif' => true,
+        'image/jpeg' => true,
+        'image/svg+xml' => true,
+        'image/tiff' => true,
+    ];
+
     /** @var array<string, true> */
     private const IGNORED_ELEMENTS = [
         'office-word:wrap' => true,
@@ -46,10 +57,19 @@ final class BodyReader
         'w:tcPr' => true,
     ];
 
+    /**
+     * @param  ?Closure(string): string  $imageReader  Reader for embedded image
+     *                                                 bytes by zip-entry path.
+     *                                                 Without it, w:drawing
+     *                                                 elements emit a warning
+     *                                                 and are dropped.
+     */
     public function __construct(
         private readonly Styles $styles = new Styles(),
         private readonly Relationships $relationships = new Relationships(),
         private readonly Numbering $numbering = new Numbering(),
+        private readonly ContentTypes $contentTypes = new ContentTypes(),
+        private readonly ?Closure $imageReader = null,
     ) {
     }
 
@@ -66,6 +86,8 @@ final class BodyReader
             'w:tbl' => $this->readTable($element),
             'w:tr' => $this->readTableRow($element),
             'w:tc' => $this->readTableCell($element),
+            'w:drawing' => $this->readDrawingChildren($element),
+            'wp:inline', 'wp:anchor' => $this->readDrawingElement($element),
             default => isset(self::IGNORED_ELEMENTS[$element->name])
                 ? Result::success(null)
                 : new Result(
@@ -237,6 +259,88 @@ final class BodyReader
                 colSpan: $gridSpan !== null ? (int) $gridSpan : 1,
                 vMerge: self::readVMerge($properties),
             ));
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private function readDrawingChildren(Element $element): Result
+    {
+        $inline = $element->first('wp:inline') ?? $element->first('wp:anchor');
+
+        return $inline === null
+            ? Result::success(null)
+            : $this->readDrawingElement($inline);
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private function readDrawingElement(Element $inline): Result
+    {
+        $blip = $inline
+            ->firstOrEmpty('a:graphic')
+            ->firstOrEmpty('a:graphicData')
+            ->firstOrEmpty('pic:pic')
+            ->firstOrEmpty('pic:blipFill')
+            ->first('a:blip');
+        if ($blip === null) {
+            return Result::success(null);
+        }
+
+        $relationshipId = $blip->attribute('r:embed');
+        if ($relationshipId === null) {
+            return new Result(
+                value: null,
+                messages: [Message::warning('Could not find image file for a:blip element')],
+            );
+        }
+
+        $target = $this->relationships->findTargetByRelationshipId($relationshipId);
+        if ($target === null || $this->imageReader === null) {
+            return new Result(
+                value: null,
+                messages: [Message::warning('Could not find image file for a:blip element')],
+            );
+        }
+
+        $path = self::joinImagePath('word', $target);
+        $contentType = $this->contentTypes->findContentType($path);
+
+        $docPr = $inline->firstOrEmpty('wp:docPr');
+        $altText = self::firstNonBlank($docPr->attribute('descr'), $docPr->attribute('title'));
+
+        $reader = $this->imageReader;
+        $image = new Image(
+            readBytes: static fn (): string => $reader($path),
+            contentType: $contentType,
+            altText: $altText,
+        );
+
+        $messages = [];
+        if ($contentType !== null && ! isset(self::SUPPORTED_IMAGE_TYPES[$contentType])) {
+            $messages[] = Message::warning(
+                "Image of type {$contentType} is unlikely to display in web browsers",
+            );
+        }
+
+        return new Result(value: $image, messages: $messages);
+    }
+
+    private static function joinImagePath(string $base, string $target): string
+    {
+        return str_starts_with($target, '/') ? mb_substr($target, 1) : $base.'/'.$target;
+    }
+
+    private static function firstNonBlank(?string ...$values): ?string
+    {
+        foreach ($values as $value) {
+            if ($value !== null && trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private static function readVMerge(Element $properties): ?bool
