@@ -9,6 +9,8 @@ namespace EndlessCreativity\ElephantPhp;
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
+use EndlessCreativity\ElephantPhp\Reader\Styles;
+use EndlessCreativity\ElephantPhp\Reader\StylesReader;
 use EndlessCreativity\ElephantPhp\Reader\Xml\XmlReader;
 use EndlessCreativity\ElephantPhp\Reader\ZipFile;
 
@@ -47,10 +49,18 @@ final class Converter
     {
         $zip = ZipFile::openPath($path);
 
+        $styles = $zip->exists('word/styles.xml')
+            ? StylesReader::readFromXml(XmlReader::readString(
+                self::stripUtf8Bom($zip->read('word/styles.xml')),
+                self::OFFICE_XML_NAMESPACE_MAP,
+            ))
+            : Styles::default();
+
         $documentXml = self::stripUtf8Bom($zip->read('word/document.xml'));
         $documentElement = XmlReader::readString($documentXml, self::OFFICE_XML_NAMESPACE_MAP);
 
-        $documentResult = (new DocumentXmlReader(new BodyReader()))->convertXmlToDocument($documentElement);
+        $documentResult = (new DocumentXmlReader(new BodyReader(styles: $styles)))
+            ->convertXmlToDocument($documentElement);
 
         $htmlResult = (new DocumentConverter())->convertToHtml($documentResult->value);
 

@@ -41,6 +41,10 @@ final class BodyReader
         'w:tcPr' => true,
     ];
 
+    public function __construct(private readonly Styles $styles = new Styles())
+    {
+    }
+
     /**
      * @return Result<?DocumentNode>
      */
@@ -86,8 +90,23 @@ final class BodyReader
      */
     private function readParagraph(Element $element): Result
     {
-        return $this->readXmlElements($element->children)
-            ->map(fn (array $children): Paragraph => new Paragraph(children: $children));
+        $properties = $element->firstOrEmpty('w:pPr');
+        $childrenResult = $this->readXmlElements($element->children);
+        $styleResult = $this->readStyle(
+            properties: $properties,
+            styleTagName: 'w:pStyle',
+            styleType: 'Paragraph',
+            finder: fn (string $id): ?Style => $this->styles->findParagraphStyleById($id),
+        );
+
+        return new Result(
+            value: new Paragraph(
+                children: $childrenResult->value,
+                styleId: $styleResult->value['styleId'],
+                styleName: $styleResult->value['styleName'],
+            ),
+            messages: array_merge($childrenResult->messages, $styleResult->messages),
+        );
     }
 
     /**
@@ -96,10 +115,19 @@ final class BodyReader
     private function readRun(Element $element): Result
     {
         $properties = $element->firstOrEmpty('w:rPr');
+        $childrenResult = $this->readXmlElements($element->children);
+        $styleResult = $this->readStyle(
+            properties: $properties,
+            styleTagName: 'w:rStyle',
+            styleType: 'Run',
+            finder: fn (string $id): ?Style => $this->styles->findCharacterStyleById($id),
+        );
 
-        return $this->readXmlElements($element->children)
-            ->map(fn (array $children): Run => new Run(
-                children: $children,
+        return new Result(
+            value: new Run(
+                children: $childrenResult->value,
+                styleId: $styleResult->value['styleId'],
+                styleName: $styleResult->value['styleName'],
                 isBold: self::readBoolean($properties->first('w:b')),
                 isItalic: self::readBoolean($properties->first('w:i')),
                 isUnderline: self::readUnderline($properties->first('w:u')),
@@ -107,7 +135,34 @@ final class BodyReader
                 isAllCaps: self::readBoolean($properties->first('w:caps')),
                 isSmallCaps: self::readBoolean($properties->first('w:smallCaps')),
                 verticalAlignment: self::readVerticalAlignment($properties->first('w:vertAlign')),
-            ));
+            ),
+            messages: array_merge($childrenResult->messages, $styleResult->messages),
+        );
+    }
+
+    /**
+     * @param  callable(string): ?Style  $finder
+     * @return Result<array{styleId: ?string, styleName: ?string}>
+     */
+    private function readStyle(Element $properties, string $styleTagName, string $styleType, callable $finder): Result
+    {
+        $styleElement = $properties->first($styleTagName);
+        $styleId = $styleElement?->attribute('w:val');
+        if ($styleId === null) {
+            return Result::success(['styleId' => null, 'styleName' => null]);
+        }
+
+        $style = $finder($styleId);
+        if ($style === null) {
+            return new Result(
+                value: ['styleId' => $styleId, 'styleName' => null],
+                messages: [Message::warning(
+                    "{$styleType} style with ID {$styleId} was referenced but not defined in the document",
+                )],
+            );
+        }
+
+        return Result::success(['styleId' => $styleId, 'styleName' => $style->name]);
     }
 
     private static function readBoolean(?Element $element): bool
