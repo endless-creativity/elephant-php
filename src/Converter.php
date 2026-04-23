@@ -76,6 +76,29 @@ final class Converter
      */
     public function convertToHtml(string $path): Result
     {
+        return $this->convert(
+            $path,
+            static fn (DocumentConverter $converter, $document): Result => $converter->convertToHtml($document),
+        );
+    }
+
+    /**
+     * @return Result<string>
+     */
+    public function convertToMarkdown(string $path): Result
+    {
+        return $this->convert(
+            $path,
+            static fn (DocumentConverter $converter, $document): Result => $converter->convertToMarkdown($document),
+        );
+    }
+
+    /**
+     * @param  callable(DocumentConverter, \EndlessCreativity\ElephantPhp\Document\Document): Result<string>  $write
+     * @return Result<string>
+     */
+    private function convert(string $path, callable $write): Result
+    {
         $zip = ZipFile::openPath($path);
 
         $styles = $zip->exists('word/styles.xml')
@@ -119,10 +142,11 @@ final class Converter
             ),
         ))->convertXmlToDocument($documentElement);
 
-        $htmlResult = (new DocumentConverter(
+        $converter = new DocumentConverter(
             styleMap: $this->styleMap,
             imageHandler: $this->imageHandler,
-        ))->convertToHtml($documentResult->value);
+        );
+        $htmlResult = $write($converter, $documentResult->value);
 
         return new Result(
             value: $htmlResult->value,

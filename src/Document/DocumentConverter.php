@@ -8,6 +8,7 @@ namespace EndlessCreativity\ElephantPhp\Document;
 
 use EndlessCreativity\ElephantPhp\Html\Element as HtmlElement;
 use EndlessCreativity\ElephantPhp\Html\HtmlWriter;
+use EndlessCreativity\ElephantPhp\Html\MarkdownWriter;
 use EndlessCreativity\ElephantPhp\Html\Node as HtmlNode;
 use EndlessCreativity\ElephantPhp\Html\Simplifier;
 use EndlessCreativity\ElephantPhp\Html\Tag;
@@ -35,11 +36,28 @@ final class DocumentConverter
      */
     public function convertToHtml(Document $document): Result
     {
+        return $this->convertWith($document, HtmlWriter::write(...));
+    }
+
+    /**
+     * @return Result<string>
+     */
+    public function convertToMarkdown(Document $document): Result
+    {
+        return $this->convertWith($document, MarkdownWriter::write(...));
+    }
+
+    /**
+     * @param  callable(list<HtmlNode>): string  $writer
+     * @return Result<string>
+     */
+    private function convertWith(Document $document, callable $writer): Result
+    {
         $messages = [];
         $htmlNodes = $this->convertNodes($document->children, $messages);
 
         return new Result(
-            value: HtmlWriter::write(Simplifier::simplify($htmlNodes)),
+            value: $writer(Simplifier::simplify($htmlNodes)),
             messages: $messages,
         );
     }

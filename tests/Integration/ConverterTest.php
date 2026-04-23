@@ -35,6 +35,18 @@ it('converts tables.docx into a 2x2 <table>', function (): void {
     );
 });
 
+it('converts single-paragraph.docx to a markdown paragraph', function (): void {
+    $result = (new Converter())->convertToMarkdown(fixture('single-paragraph.docx'));
+
+    expect($result->value)->toBe("Walking on imported air\n\n");
+});
+
+it('converts simple-list.docx to a markdown bullet list', function (): void {
+    $result = (new Converter())->convertToMarkdown(fixture('simple-list.docx'));
+
+    expect($result->value)->toBe("- Apple\n- Banana\n\n");
+});
+
 it('converts tiny-picture.docx into a paragraph with an embedded data-URI <img>', function (): void {
     $result = (new Converter())->convertToHtml(fixture('tiny-picture.docx'));
 
