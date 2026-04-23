@@ -93,11 +93,73 @@ final class DocumentConverter
             return $this->convertHyperlink($node, $messages);
         }
 
+        if ($node instanceof Table) {
+            return [new HtmlElement(
+                tag: new Tag(tagName: 'table'),
+                children: $this->convertNodes($node->children, $messages),
+            )];
+        }
+
+        if ($node instanceof TableRow) {
+            return [new HtmlElement(
+                tag: new Tag(tagName: 'tr'),
+                children: $this->convertTableRowChildren($node, $messages),
+            )];
+        }
+
+        if ($node instanceof TableCell) {
+            return [new HtmlElement(
+                tag: new Tag(tagName: 'td', attributes: self::tableCellAttributes($node)),
+                children: $this->convertNodes($node->children, $messages),
+            )];
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }
 
         return [];
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlNode>
+     */
+    private function convertTableRowChildren(TableRow $row, array &$messages): array
+    {
+        $cells = [];
+        $tagName = $row->isHeader ? 'th' : 'td';
+        foreach ($row->children as $child) {
+            if ($child instanceof TableCell) {
+                $cells[] = new HtmlElement(
+                    tag: new Tag(tagName: $tagName, attributes: self::tableCellAttributes($child)),
+                    children: $this->convertNodes($child->children, $messages),
+                );
+            } else {
+                foreach ($this->convertNode($child, $messages) as $node) {
+                    $cells[] = $node;
+                }
+            }
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function tableCellAttributes(TableCell $cell): array
+    {
+        $attributes = [];
+        if ($cell->colSpan !== 1) {
+            $attributes['colspan'] = (string) $cell->colSpan;
+        }
+        if ($cell->rowSpan !== 1) {
+            $attributes['rowspan'] = (string) $cell->rowSpan;
+        }
+
+        return $attributes;
     }
 
     /**

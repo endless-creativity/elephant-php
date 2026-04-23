@@ -21,3 +21,16 @@ it('converts simple-list.docx into a single <ul> with two <li> items', function 
 
     expect($result->value)->toBe('<ul><li>Apple</li><li>Banana</li></ul>');
 });
+
+it('converts tables.docx into a 2x2 <table>', function (): void {
+    $result = (new Converter())->convertToHtml(fixture('tables.docx'));
+
+    expect($result->value)->toBe(
+        '<p>Above</p>'
+        .'<table>'
+        .'<tr><td><p>Top left</p></td><td><p>Top right</p></td></tr>'
+        .'<tr><td><p>Bottom left</p></td><td><p>Bottom right</p></td></tr>'
+        .'</table>'
+        .'<p>Below</p>',
+    );
+});

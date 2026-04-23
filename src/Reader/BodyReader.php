@@ -11,6 +11,9 @@ use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
 use EndlessCreativity\ElephantPhp\Document\NumberingLevel;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
+use EndlessCreativity\ElephantPhp\Document\Table;
+use EndlessCreativity\ElephantPhp\Document\TableCell;
+use EndlessCreativity\ElephantPhp\Document\TableRow;
 use EndlessCreativity\ElephantPhp\Document\Text;
 use EndlessCreativity\ElephantPhp\Document\VerticalAlignment;
 use EndlessCreativity\ElephantPhp\Message;
@@ -60,6 +63,9 @@ final class BodyReader
             'w:r' => $this->readRun($element),
             'w:t' => Result::success(new Text(value: $element->text())),
             'w:hyperlink' => $this->readHyperlink($element),
+            'w:tbl' => $this->readTable($element),
+            'w:tr' => $this->readTableRow($element),
+            'w:tc' => $this->readTableCell($element),
             default => isset(self::IGNORED_ELEMENTS[$element->name])
                 ? Result::success(null)
                 : new Result(
@@ -182,6 +188,201 @@ final class BodyReader
 
                 return new Hyperlink(children: $children, anchor: $anchor, targetFrame: $targetFrame);
             });
+    }
+
+    /**
+     * @return Result<DocumentNode>
+     */
+    private function readTable(Element $element): Result
+    {
+        return $this->readXmlElements($element->children)
+            ->map(fn (array $children): Table => new Table(
+                children: self::resolveRowSpans($children),
+            ));
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private function readTableRow(Element $element): Result
+    {
+        $properties = $element->firstOrEmpty('w:trPr');
+
+        // Per ECMA-376 § 17.13.5.12 (Deleted Table Row), a row marked as
+        // deleted is effectively absent.
+        if ($properties->first('w:del') !== null) {
+            return Result::success(null);
+        }
+
+        $isHeader = $properties->first('w:tblHeader') !== null;
+
+        return $this->readXmlElements($element->children)
+            ->map(fn (array $children): TableRow => new TableRow(
+                children: $children,
+                isHeader: $isHeader,
+            ));
+    }
+
+    /**
+     * @return Result<DocumentNode>
+     */
+    private function readTableCell(Element $element): Result
+    {
+        $properties = $element->firstOrEmpty('w:tcPr');
+        $gridSpan = $properties->first('w:gridSpan')?->attribute('w:val');
+
+        return $this->readXmlElements($element->children)
+            ->map(fn (array $children): TableCell => new TableCell(
+                children: $children,
+                colSpan: $gridSpan !== null ? (int) $gridSpan : 1,
+                vMerge: self::readVMerge($properties),
+            ));
+    }
+
+    private static function readVMerge(Element $properties): ?bool
+    {
+        $element = $properties->first('w:vMerge');
+        if ($element === null) {
+            return null;
+        }
+        $value = $element->attribute('w:val');
+
+        // Mammoth: a w:vMerge with no w:val (or w:val="continue") means
+        // the cell continues a vertical merge from above.
+        return $value === null || $value === 'continue';
+    }
+
+    /**
+     * Walks the rows of a table and resolves vertical merges into rowSpan
+     * counts on the anchor cells, dropping the continuation cells. This
+     * mirrors the in-place mutation in mammoth's calculateRowSpans, but
+     * returns fresh readonly nodes instead.
+     *
+     * @param  list<DocumentNode>  $children
+     * @return list<DocumentNode>
+     */
+    private static function resolveRowSpans(array $children): array
+    {
+        // Step 1: bail out unchanged if any non-row child or any non-cell row
+        // child appears -- mammoth removes _vMerge in that case rather than
+        // attempting a merge. We do the equivalent by stripping vMerge from
+        // any TableCell encountered.
+        foreach ($children as $row) {
+            if (! $row instanceof TableRow) {
+                return self::stripVMerge($children);
+            }
+            foreach ($row->children as $cell) {
+                if (! $cell instanceof TableCell) {
+                    return self::stripVMerge($children);
+                }
+            }
+        }
+
+        /** @var list<list<TableCell>> $rowsCells */
+        $rowsCells = [];
+        foreach ($children as $row) {
+            /** @var TableRow $row */
+            $rowsCells[] = array_values(array_filter(
+                $row->children,
+                static fn ($cell): bool => $cell instanceof TableCell,
+            ));
+        }
+
+        /** @var array<int, array{rowIndex: int, cellIndex: int, rowSpan: int}> $columns */
+        $columns = [];
+        foreach ($rowsCells as $rowIndex => $cells) {
+            $cellIndex = 0;
+            foreach ($cells as $i => $cell) {
+                if ($cell->vMerge === true && isset($columns[$cellIndex])) {
+                    $columns[$cellIndex]['rowSpan']++;
+                    // Mark this cell as merged-away by setting vMerge to a
+                    // sentinel we drop in step 3.
+                    $rowsCells[$rowIndex][$i] = new TableCell(
+                        children: $cell->children,
+                        colSpan: $cell->colSpan,
+                        rowSpan: $cell->rowSpan,
+                        vMerge: true,
+                    );
+                } else {
+                    $columns[$cellIndex] = [
+                        'rowIndex' => $rowIndex,
+                        'cellIndex' => $i,
+                        'rowSpan' => 1,
+                    ];
+                    // Reset vMerge so the cell becomes an anchor.
+                    $rowsCells[$rowIndex][$i] = new TableCell(
+                        children: $cell->children,
+                        colSpan: $cell->colSpan,
+                        rowSpan: 1,
+                        vMerge: false,
+                    );
+                }
+                $cellIndex += $cell->colSpan;
+            }
+        }
+
+        // Step 2: write the computed rowSpan back onto each anchor.
+        foreach ($columns as $column) {
+            if ($column['rowSpan'] > 1) {
+                $anchor = $rowsCells[$column['rowIndex']][$column['cellIndex']];
+                $rowsCells[$column['rowIndex']][$column['cellIndex']] = new TableCell(
+                    children: $anchor->children,
+                    colSpan: $anchor->colSpan,
+                    rowSpan: $column['rowSpan'],
+                    vMerge: false,
+                );
+            }
+        }
+
+        // Step 3: drop merged-away cells and rebuild rows with cleaned cells.
+        $result = [];
+        foreach ($children as $rowIndex => $row) {
+            /** @var TableRow $row */
+            $cleanedCells = [];
+            foreach ($rowsCells[$rowIndex] as $cell) {
+                if ($cell->vMerge === true) {
+                    continue;
+                }
+                $cleanedCells[] = new TableCell(
+                    children: $cell->children,
+                    colSpan: $cell->colSpan,
+                    rowSpan: $cell->rowSpan,
+                    vMerge: null,
+                );
+            }
+            $result[] = new TableRow(children: $cleanedCells, isHeader: $row->isHeader);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  list<DocumentNode>  $children
+     * @return list<DocumentNode>
+     */
+    private static function stripVMerge(array $children): array
+    {
+        $result = [];
+        foreach ($children as $node) {
+            if ($node instanceof TableRow) {
+                $cells = [];
+                foreach ($node->children as $cell) {
+                    $cells[] = $cell instanceof TableCell
+                        ? new TableCell(
+                            children: $cell->children,
+                            colSpan: $cell->colSpan,
+                            rowSpan: $cell->rowSpan,
+                            vMerge: null,
+                        )
+                        : $cell;
+                }
+                $result[] = new TableRow(children: $cells, isHeader: $node->isHeader);
+            } else {
+                $result[] = $node;
+            }
+        }
+
+        return $result;
     }
 
     private static function replaceFragment(string $uri, string $fragment): string
