@@ -1,0 +1,8 @@
+/.claude/settings.local.json
+/vendor/
+/reference/
+/build/
+/.phpunit.cache/
+.env
+.phpunit.result.cache
+composer.lock

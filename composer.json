@@ -1,0 +1,51 @@
+{
+    "name": "endless-creativity/elephant-php",
+    "description": "An elephant never forgets your document structure — convert .docx to semantic HTML and Markdown in pure PHP. Inspired by mammoth.js.",
+    "type": "library",
+    "license": "BSD-2-Clause",
+    "keywords": ["docx", "word", "markdown", "html", "converter", "office", "ooxml", "document"],
+    "homepage": "https://github.com/endless-creativity/elephant-php",
+    "authors": [
+        {
+            "name": "Endless Creativity",
+            "email": "mm@endlesscreativity.it"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-dom": "*",
+        "ext-libxml": "*",
+        "ext-mbstring": "*",
+        "ext-xmlreader": "*",
+        "ext-zip": "*",
+        "league/html-to-markdown": "^5.1"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.5",
+        "phpstan/phpstan": "^2.0",
+        "laravel/pint": "^1.18"
+    },
+    "autoload": {
+        "psr-4": {
+            "EndlessCreativity\\ElephantPhp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EndlessCreativity\\ElephantPhp\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "stan": "phpstan analyse",
+        "format": "pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
