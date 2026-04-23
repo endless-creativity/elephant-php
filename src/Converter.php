@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp;
 
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
+use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
+use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypes;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypesReader;
@@ -19,6 +21,8 @@ use EndlessCreativity\ElephantPhp\Reader\Styles;
 use EndlessCreativity\ElephantPhp\Reader\StylesReader;
 use EndlessCreativity\ElephantPhp\Reader\Xml\XmlReader;
 use EndlessCreativity\ElephantPhp\Reader\ZipFile;
+use EndlessCreativity\ElephantPhp\Style\StyleMap;
+use EndlessCreativity\ElephantPhp\Style\StyleMapParser;
 
 final class Converter
 {
@@ -47,6 +51,25 @@ final class Converter
 
         'http://schemas.microsoft.com/office/word/2010/wordml' => 'wordml',
     ];
+
+    private readonly StyleMap $styleMap;
+
+    /**
+     * @param  list<string>|null  $styleMap  Optional list of mapping rules in
+     *                                       mammoth's DSL (e.g. "p[style-name=
+     *                                       'Aside'] => p.aside"). Rules are
+     *                                       prepended to the default heading
+     *                                       map and tried first.
+     */
+    public function __construct(
+        ?array $styleMap = null,
+        private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
+    ) {
+        $base = StyleMap::default();
+        $this->styleMap = $styleMap === null
+            ? $base
+            : $base->prepend(StyleMapParser::parseAll($styleMap)->mappings);
+    }
 
     /**
      * @return Result<string>
@@ -96,7 +119,10 @@ final class Converter
             ),
         ))->convertXmlToDocument($documentElement);
 
-        $htmlResult = (new DocumentConverter())->convertToHtml($documentResult->value);
+        $htmlResult = (new DocumentConverter(
+            styleMap: $this->styleMap,
+            imageHandler: $this->imageHandler,
+        ))->convertToHtml($documentResult->value);
 
         return new Result(
             value: $htmlResult->value,

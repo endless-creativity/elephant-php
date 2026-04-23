@@ -16,37 +16,18 @@ use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
 use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Message;
 use EndlessCreativity\ElephantPhp\Result;
+use EndlessCreativity\ElephantPhp\Style\StyleMap;
 use Throwable;
 
 final class DocumentConverter
 {
-    /**
-     * Hardcoded default paragraph style map, ported from
-     * mammoth.js/lib/options-reader.js. The DSL parser will allow users to
-     * extend this in a later commit; for now any non-default mapping must be
-     * added by editing this constant.
-     *
-     * @var list<array{styleId?: string, styleName?: string, tag: string}>
-     */
-    private const DEFAULT_PARAGRAPH_STYLE_MAP = [
-        ['styleId' => 'Heading1', 'tag' => 'h1'],
-        ['styleId' => 'Heading2', 'tag' => 'h2'],
-        ['styleId' => 'Heading3', 'tag' => 'h3'],
-        ['styleId' => 'Heading4', 'tag' => 'h4'],
-        ['styleId' => 'Heading5', 'tag' => 'h5'],
-        ['styleId' => 'Heading6', 'tag' => 'h6'],
-        ['styleName' => 'Heading 1', 'tag' => 'h1'],
-        ['styleName' => 'Heading 2', 'tag' => 'h2'],
-        ['styleName' => 'Heading 3', 'tag' => 'h3'],
-        ['styleName' => 'Heading 4', 'tag' => 'h4'],
-        ['styleName' => 'Heading 5', 'tag' => 'h5'],
-        ['styleName' => 'Heading 6', 'tag' => 'h6'],
-        ['styleId' => 'Heading', 'tag' => 'h1'],
-        ['styleName' => 'Heading', 'tag' => 'h1'],
-    ];
+    private readonly StyleMap $styleMap;
 
-    public function __construct(private readonly ImageHandler $imageHandler = new DataUriImageHandler())
-    {
+    public function __construct(
+        ?StyleMap $styleMap = null,
+        private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
+    ) {
+        $this->styleMap = $styleMap ?? StyleMap::default();
     }
 
     /**
@@ -234,12 +215,20 @@ final class DocumentConverter
             )];
         }
 
-        $tagName = self::resolveParagraphTag($paragraph, $messages);
+        $children = $this->convertNodes($paragraph->children, $messages);
 
-        return [new HtmlElement(
-            tag: new Tag(tagName: $tagName),
-            children: $this->convertNodes($paragraph->children, $messages),
-        )];
+        $mapping = $this->styleMap->findForParagraph($paragraph);
+        if ($mapping !== null) {
+            return $mapping->to->applyTo($children);
+        }
+
+        if ($paragraph->styleId !== null) {
+            $messages[] = Message::warning(
+                "Unrecognised paragraph style: '{$paragraph->styleName}' (Style ID: {$paragraph->styleId})",
+            );
+        }
+
+        return [new HtmlElement(tag: new Tag(tagName: 'p'), children: $children)];
     }
 
     /**
@@ -281,44 +270,14 @@ final class DocumentConverter
     /**
      * @param  list<Message>  $messages
      * @param-out  list<Message>  $messages
-     */
-    private static function resolveParagraphTag(Paragraph $paragraph, array &$messages): string
-    {
-        foreach (self::DEFAULT_PARAGRAPH_STYLE_MAP as $entry) {
-            if (isset($entry['styleId']) && $entry['styleId'] === $paragraph->styleId) {
-                return $entry['tag'];
-            }
-            if (isset($entry['styleName']) && $entry['styleName'] === $paragraph->styleName) {
-                return $entry['tag'];
-            }
-        }
-
-        if ($paragraph->styleId !== null) {
-            $messages[] = Message::warning(
-                "Unrecognised paragraph style: '{$paragraph->styleName}' (Style ID: {$paragraph->styleId})",
-            );
-        }
-
-        return 'p';
-    }
-
-    /**
-     * @param  list<Message>  $messages
-     * @param-out  list<Message>  $messages
      * @return list<HtmlNode>
      */
     private function convertRun(Run $run, array &$messages): array
     {
-        if ($run->styleId !== null) {
-            $messages[] = Message::warning(
-                "Unrecognised run style: '{$run->styleName}' (Style ID: {$run->styleId})",
-            );
-        }
-
         $nodes = $this->convertNodes($run->children, $messages);
 
-        // Wrap from innermost to outermost, matching the push order in
-        // mammoth.js convertRun. <strong> ends up as the outermost wrapper.
+        // Inline styling wrappers, innermost first to outermost, matching
+        // mammoth.js convertRun's push order.
         if ($run->isStrikethrough) {
             $nodes = self::wrap('s', $nodes);
         }
@@ -333,6 +292,18 @@ final class DocumentConverter
         }
         if ($run->isBold) {
             $nodes = self::wrap('strong', $nodes);
+        }
+
+        // The character-style mapping wraps everything else.
+        $mapping = $this->styleMap->findForRun($run);
+        if ($mapping !== null) {
+            return $mapping->to->applyTo($nodes);
+        }
+
+        if ($run->styleId !== null) {
+            $messages[] = Message::warning(
+                "Unrecognised run style: '{$run->styleName}' (Style ID: {$run->styleId})",
+            );
         }
 
         return $nodes;
