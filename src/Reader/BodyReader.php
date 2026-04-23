@@ -112,6 +112,16 @@ final class BodyReader
             if (! $node instanceof Element) {
                 continue;
             }
+            // Content controls (Word's structured document tags) are
+            // transparent: emit just the contents of <w:sdtContent> as if
+            // they were siblings of the surrounding scope. Matches
+            // mammoth's "w:sdt" handler when no checkbox is present (the
+            // checkbox case is TODO).
+            if ($node->name === 'w:sdt') {
+                $perElement[] = $this->readXmlElements($node->firstOrEmpty('w:sdtContent')->children);
+
+                continue;
+            }
             $perElement[] = $this->readXmlElement($node)
                 ->map(fn (?DocumentNode $documentNode): array => $documentNode === null ? [] : [$documentNode]);
         }
