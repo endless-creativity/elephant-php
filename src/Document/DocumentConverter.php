@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Ported from mammoth.js: lib/document-to-html.js
+// Ported from mammoth.js: lib/document-to-html.js + lib/options-reader.js
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
@@ -12,29 +12,61 @@ use EndlessCreativity\ElephantPhp\Html\Node as HtmlNode;
 use EndlessCreativity\ElephantPhp\Html\Simplifier;
 use EndlessCreativity\ElephantPhp\Html\Tag;
 use EndlessCreativity\ElephantPhp\Html\Text as HtmlText;
+use EndlessCreativity\ElephantPhp\Message;
 use EndlessCreativity\ElephantPhp\Result;
 
 final class DocumentConverter
 {
     /**
+     * Hardcoded default paragraph style map, ported from
+     * mammoth.js/lib/options-reader.js. The DSL parser will allow users to
+     * extend this in a later commit; for now any non-default mapping must be
+     * added by editing this constant.
+     *
+     * @var list<array{styleId?: string, styleName?: string, tag: string}>
+     */
+    private const DEFAULT_PARAGRAPH_STYLE_MAP = [
+        ['styleId' => 'Heading1', 'tag' => 'h1'],
+        ['styleId' => 'Heading2', 'tag' => 'h2'],
+        ['styleId' => 'Heading3', 'tag' => 'h3'],
+        ['styleId' => 'Heading4', 'tag' => 'h4'],
+        ['styleId' => 'Heading5', 'tag' => 'h5'],
+        ['styleId' => 'Heading6', 'tag' => 'h6'],
+        ['styleName' => 'Heading 1', 'tag' => 'h1'],
+        ['styleName' => 'Heading 2', 'tag' => 'h2'],
+        ['styleName' => 'Heading 3', 'tag' => 'h3'],
+        ['styleName' => 'Heading 4', 'tag' => 'h4'],
+        ['styleName' => 'Heading 5', 'tag' => 'h5'],
+        ['styleName' => 'Heading 6', 'tag' => 'h6'],
+        ['styleId' => 'Heading', 'tag' => 'h1'],
+        ['styleName' => 'Heading', 'tag' => 'h1'],
+    ];
+
+    /**
      * @return Result<string>
      */
     public function convertToHtml(Document $document): Result
     {
-        $htmlNodes = $this->convertNodes($document->children);
+        $messages = [];
+        $htmlNodes = $this->convertNodes($document->children, $messages);
 
-        return Result::success(HtmlWriter::write(Simplifier::simplify($htmlNodes)));
+        return new Result(
+            value: HtmlWriter::write(Simplifier::simplify($htmlNodes)),
+            messages: $messages,
+        );
     }
 
     /**
      * @param  list<Node>  $nodes
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
      * @return list<HtmlNode>
      */
-    private function convertNodes(array $nodes): array
+    private function convertNodes(array $nodes, array &$messages): array
     {
         $html = [];
         foreach ($nodes as $node) {
-            foreach ($this->convertNode($node) as $htmlNode) {
+            foreach ($this->convertNode($node, $messages) as $htmlNode) {
                 $html[] = $htmlNode;
             }
         }
@@ -43,19 +75,18 @@ final class DocumentConverter
     }
 
     /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
      * @return list<HtmlNode>
      */
-    private function convertNode(Node $node): array
+    private function convertNode(Node $node, array &$messages): array
     {
         if ($node instanceof Paragraph) {
-            return [new HtmlElement(
-                tag: new Tag(tagName: 'p'),
-                children: $this->convertNodes($node->children),
-            )];
+            return $this->convertParagraph($node, $messages);
         }
 
         if ($node instanceof Run) {
-            return $this->convertRun($node);
+            return $this->convertRun($node, $messages);
         }
 
         if ($node instanceof Text) {
@@ -66,11 +97,58 @@ final class DocumentConverter
     }
 
     /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
      * @return list<HtmlNode>
      */
-    private function convertRun(Run $run): array
+    private function convertParagraph(Paragraph $paragraph, array &$messages): array
     {
-        $nodes = $this->convertNodes($run->children);
+        $tagName = self::resolveParagraphTag($paragraph, $messages);
+
+        return [new HtmlElement(
+            tag: new Tag(tagName: $tagName),
+            children: $this->convertNodes($paragraph->children, $messages),
+        )];
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     */
+    private static function resolveParagraphTag(Paragraph $paragraph, array &$messages): string
+    {
+        foreach (self::DEFAULT_PARAGRAPH_STYLE_MAP as $entry) {
+            if (isset($entry['styleId']) && $entry['styleId'] === $paragraph->styleId) {
+                return $entry['tag'];
+            }
+            if (isset($entry['styleName']) && $entry['styleName'] === $paragraph->styleName) {
+                return $entry['tag'];
+            }
+        }
+
+        if ($paragraph->styleId !== null) {
+            $messages[] = Message::warning(
+                "Unrecognised paragraph style: '{$paragraph->styleName}' (Style ID: {$paragraph->styleId})",
+            );
+        }
+
+        return 'p';
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlNode>
+     */
+    private function convertRun(Run $run, array &$messages): array
+    {
+        if ($run->styleId !== null) {
+            $messages[] = Message::warning(
+                "Unrecognised run style: '{$run->styleName}' (Style ID: {$run->styleId})",
+            );
+        }
+
+        $nodes = $this->convertNodes($run->children, $messages);
 
         // Wrap from innermost to outermost, matching the push order in
         // mammoth.js convertRun. <strong> ends up as the outermost wrapper.
