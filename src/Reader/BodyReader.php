@@ -19,9 +19,25 @@ final class BodyReader
 {
     /** @var array<string, true> */
     private const IGNORED_ELEMENTS = [
+        'office-word:wrap' => true,
+        'v:shadow' => true,
+        'v:shapetype' => true,
+        'w:annotationRef' => true,
+        'w:bookmarkEnd' => true,
+        'w:sectPr' => true,
+        'w:proofErr' => true,
+        'w:lastRenderedPageBreak' => true,
+        'w:commentRangeStart' => true,
+        'w:commentRangeEnd' => true,
+        'w:del' => true,
+        'w:footnoteRef' => true,
+        'w:endnoteRef' => true,
         'w:pPr' => true,
         'w:rPr' => true,
-        'w:proofErr' => true,
+        'w:tblPr' => true,
+        'w:tblGrid' => true,
+        'w:trPr' => true,
+        'w:tcPr' => true,
     ];
 
     /**
