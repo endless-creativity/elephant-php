@@ -15,3 +15,9 @@ it('converts strikethrough.docx with a strikethrough run wrapped in <s>', functi
 
     expect($result->value)->toBe("<p><s>Today's Special: Salmon</s> Sold out</p>");
 });
+
+it('converts simple-list.docx into a single <ul> with two <li> items', function (): void {
+    $result = (new Converter())->convertToHtml(fixture('simple-list.docx'));
+
+    expect($result->value)->toBe('<ul><li>Apple</li><li>Banana</li></ul>');
+});

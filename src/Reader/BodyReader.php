@@ -8,6 +8,7 @@ namespace EndlessCreativity\ElephantPhp\Reader;
 
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
+use EndlessCreativity\ElephantPhp\Document\NumberingLevel;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
 use EndlessCreativity\ElephantPhp\Document\Text;
@@ -45,6 +46,7 @@ final class BodyReader
     public function __construct(
         private readonly Styles $styles = new Styles(),
         private readonly Relationships $relationships = new Relationships(),
+        private readonly Numbering $numbering = new Numbering(),
     ) {
     }
 
@@ -108,9 +110,23 @@ final class BodyReader
                 children: $childrenResult->value,
                 styleId: $styleResult->value['styleId'],
                 styleName: $styleResult->value['styleName'],
+                numbering: $this->readNumbering($properties->firstOrEmpty('w:numPr')),
             ),
             messages: array_merge($childrenResult->messages, $styleResult->messages),
         );
+    }
+
+    private function readNumbering(Element $numPr): ?NumberingLevel
+    {
+        $numId = $numPr->first('w:numId')?->attribute('w:val');
+        $ilvl = $numPr->first('w:ilvl')?->attribute('w:val');
+        if ($numId === null) {
+            return null;
+        }
+
+        // Per mammoth: malformed docs may omit w:ilvl while still
+        // referencing a numId, in which case we assume level 0.
+        return $this->numbering->findLevel($numId, $ilvl ?? '0');
     }
 
     /**

@@ -15,6 +15,7 @@ final readonly class Paragraph implements Node
         public array $children = [],
         public ?string $styleId = null,
         public ?string $styleName = null,
+        public ?NumberingLevel $numbering = null,
     ) {
     }
 }

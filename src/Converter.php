@@ -9,6 +9,8 @@ namespace EndlessCreativity\ElephantPhp;
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
+use EndlessCreativity\ElephantPhp\Reader\Numbering;
+use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
 use EndlessCreativity\ElephantPhp\Reader\Relationships;
 use EndlessCreativity\ElephantPhp\Reader\RelationshipsReader;
 use EndlessCreativity\ElephantPhp\Reader\Styles;
@@ -65,11 +67,18 @@ final class Converter
             ))
             : Relationships::default();
 
+        $numbering = $zip->exists('word/numbering.xml')
+            ? NumberingReader::readFromXml(XmlReader::readString(
+                self::stripUtf8Bom($zip->read('word/numbering.xml')),
+                self::OFFICE_XML_NAMESPACE_MAP,
+            ))
+            : Numbering::default();
+
         $documentXml = self::stripUtf8Bom($zip->read('word/document.xml'));
         $documentElement = XmlReader::readString($documentXml, self::OFFICE_XML_NAMESPACE_MAP);
 
         $documentResult = (new DocumentXmlReader(
-            new BodyReader(styles: $styles, relationships: $relationships),
+            new BodyReader(styles: $styles, relationships: $relationships, numbering: $numbering),
         ))->convertXmlToDocument($documentElement);
 
         $htmlResult = (new DocumentConverter())->convertToHtml($documentResult->value);

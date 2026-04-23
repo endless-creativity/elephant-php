@@ -132,12 +132,55 @@ final class DocumentConverter
      */
     private function convertParagraph(Paragraph $paragraph, array &$messages): array
     {
+        if ($paragraph->numbering !== null) {
+            return [self::wrapAsListItem(
+                $paragraph->numbering,
+                $this->convertNodes($paragraph->children, $messages),
+            )];
+        }
+
         $tagName = self::resolveParagraphTag($paragraph, $messages);
 
         return [new HtmlElement(
             tag: new Tag(tagName: $tagName),
             children: $this->convertNodes($paragraph->children, $messages),
         )];
+    }
+
+    /**
+     * Builds the list-item wrapping for a single numbered paragraph as a
+     * stack of `<list><li>` pairs deep enough to express the paragraph's
+     * level. The deepest `<li>` is fresh so the simplifier preserves it as
+     * a separate item; everything above is non-fresh so adjacent siblings
+     * collapse into a single nested list. This avoids the need for the full
+     * style-map DSL while still producing valid nested-list HTML.
+     *
+     * @param  list<HtmlNode>  $children
+     */
+    private static function wrapAsListItem(NumberingLevel $numbering, array $children): HtmlElement
+    {
+        $listTag = $numbering->isOrdered ? 'ol' : 'ul';
+
+        $node = new HtmlElement(
+            tag: new Tag(tagName: 'li', fresh: true),
+            children: $children,
+        );
+        $node = new HtmlElement(
+            tag: new Tag(tagName: $listTag, fresh: false),
+            children: [$node],
+        );
+        for ($depth = 0; $depth < $numbering->level; $depth++) {
+            $node = new HtmlElement(
+                tag: new Tag(tagName: 'li', fresh: false),
+                children: [$node],
+            );
+            $node = new HtmlElement(
+                tag: new Tag(tagName: $listTag, fresh: false),
+                children: [$node],
+            );
+        }
+
+        return $node;
     }
 
     /**
