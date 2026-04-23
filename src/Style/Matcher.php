@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 // Ported from mammoth.js: lib/styles/document-matchers.js
 //
-// Subset for v0.1: only paragraph and run matchers, only styleId / styleName
-// (equal or startsWith). Mammoth's table, b/i/u/strike, all-caps/small-caps,
-// highlight, comment-reference, list and break matchers are TODO.
+// Subset for v0.1: paragraph and run matchers (with styleId / styleName
+// equal or startsWith) plus run-property matchers (b, i, u, strike,
+// all-caps, small-caps). Mammoth's table, highlight, comment-reference,
+// list and break matchers are TODO.
 
 namespace EndlessCreativity\ElephantPhp\Style;
 
@@ -20,6 +21,8 @@ final readonly class Matcher
         public ?string $styleId = null,
         public ?string $styleName = null,
         public StyleNameMatch $styleNameMatch = StyleNameMatch::Equal,
+        /** Set when the matcher is one of mammoth's run-property forms (b, i, u, strike, all-caps, small-caps). */
+        public ?RunProperty $runProperty = null,
     ) {
     }
 
@@ -37,8 +40,23 @@ final readonly class Matcher
         if ($this->kind !== MatcherKind::Run) {
             return false;
         }
+        if ($this->runProperty !== null && ! $this->runHasProperty($run, $this->runProperty)) {
+            return false;
+        }
 
         return $this->matchesStyle($run->styleId, $run->styleName);
+    }
+
+    private function runHasProperty(Run $run, RunProperty $property): bool
+    {
+        return match ($property) {
+            RunProperty::Bold => $run->isBold,
+            RunProperty::Italic => $run->isItalic,
+            RunProperty::Underline => $run->isUnderline,
+            RunProperty::Strikethrough => $run->isStrikethrough,
+            RunProperty::AllCaps => $run->isAllCaps,
+            RunProperty::SmallCaps => $run->isSmallCaps,
+        };
     }
 
     private function matchesStyle(?string $styleId, ?string $styleName): bool

@@ -75,9 +75,30 @@ final class StyleMapParser
         return new StyleMapping(from: $matcher, to: $path);
     }
 
+    /** @var array<string, RunProperty> */
+    private const RUN_PROPERTY_MATCHERS = [
+        'b' => RunProperty::Bold,
+        'i' => RunProperty::Italic,
+        'u' => RunProperty::Underline,
+        'strike' => RunProperty::Strikethrough,
+        'all-caps' => RunProperty::AllCaps,
+        'small-caps' => RunProperty::SmallCaps,
+    ];
+
     private function parseMatcher(): Matcher
     {
         $kindToken = $this->expectType('identifier');
+
+        // The run-property matchers (b, i, u, strike, all-caps, small-caps)
+        // accept no styleId / styleName suffixes -- mammoth treats them as
+        // self-contained alternatives at the matcher-kind level.
+        if (isset(self::RUN_PROPERTY_MATCHERS[$kindToken['value']])) {
+            return new Matcher(
+                kind: MatcherKind::Run,
+                runProperty: self::RUN_PROPERTY_MATCHERS[$kindToken['value']],
+            );
+        }
+
         $kind = match ($kindToken['value']) {
             'p' => MatcherKind::Paragraph,
             'r' => MatcherKind::Run,

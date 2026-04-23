@@ -45,12 +45,42 @@ final readonly class StyleMap
         return null;
     }
 
+    /**
+     * Lookup for character-style matchers only (skips matchers that target
+     * a specific run property like b/i/u/strike/all-caps/small-caps).
+     */
     public function findForRun(Run $run): ?StyleMapping
     {
         foreach ($this->mappings as $mapping) {
+            if ($mapping->from->runProperty !== null) {
+                continue;
+            }
             if ($mapping->from->matchesRun($run)) {
                 return $mapping;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Lookup for run-property matchers (b, i, u, strike, all-caps,
+     * small-caps). Used by the converter to override the default inline
+     * wrapper tag for the given property.
+     */
+    public function findForRunProperty(RunProperty $property): ?StyleMapping
+    {
+        foreach ($this->mappings as $mapping) {
+            $matcher = $mapping->from;
+            if ($matcher->kind !== MatcherKind::Run
+                || $matcher->runProperty !== $property
+                || $matcher->styleId !== null
+                || $matcher->styleName !== null
+            ) {
+                continue;
+            }
+
+            return $mapping;
         }
 
         return null;

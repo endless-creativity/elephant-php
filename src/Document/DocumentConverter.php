@@ -17,6 +17,7 @@ use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
 use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Message;
 use EndlessCreativity\ElephantPhp\Result;
+use EndlessCreativity\ElephantPhp\Style\RunProperty;
 use EndlessCreativity\ElephantPhp\Style\StyleMap;
 use Throwable;
 
@@ -295,22 +296,21 @@ final class DocumentConverter
         $nodes = $this->convertNodes($run->children, $messages);
 
         // Inline styling wrappers, innermost first to outermost, matching
-        // mammoth.js convertRun's push order.
-        if ($run->isStrikethrough) {
-            $nodes = self::wrap('s', $nodes);
-        }
+        // mammoth.js convertRun's push order. Each property may be wrapped
+        // by either a user-supplied DSL matcher (e.g. "b => mark") or, if
+        // none is set, mammoth's default tag for that property.
+        $nodes = $this->wrapRunProperty($run->isAllCaps, RunProperty::AllCaps, null, $nodes);
+        $nodes = $this->wrapRunProperty($run->isSmallCaps, RunProperty::SmallCaps, null, $nodes);
+        $nodes = $this->wrapRunProperty($run->isStrikethrough, RunProperty::Strikethrough, 's', $nodes);
+        $nodes = $this->wrapRunProperty($run->isUnderline, RunProperty::Underline, null, $nodes);
         if ($run->verticalAlignment === VerticalAlignment::Subscript) {
             $nodes = self::wrap('sub', $nodes);
         }
         if ($run->verticalAlignment === VerticalAlignment::Superscript) {
             $nodes = self::wrap('sup', $nodes);
         }
-        if ($run->isItalic) {
-            $nodes = self::wrap('em', $nodes);
-        }
-        if ($run->isBold) {
-            $nodes = self::wrap('strong', $nodes);
-        }
+        $nodes = $this->wrapRunProperty($run->isItalic, RunProperty::Italic, 'em', $nodes);
+        $nodes = $this->wrapRunProperty($run->isBold, RunProperty::Bold, 'strong', $nodes);
 
         // The character-style mapping wraps everything else.
         $mapping = $this->styleMap->findForRun($run);
@@ -325,6 +325,24 @@ final class DocumentConverter
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param  list<HtmlNode>  $nodes
+     * @return list<HtmlNode>
+     */
+    private function wrapRunProperty(bool $apply, RunProperty $property, ?string $defaultTag, array $nodes): array
+    {
+        if (! $apply) {
+            return $nodes;
+        }
+
+        $mapping = $this->styleMap->findForRunProperty($property);
+        if ($mapping !== null) {
+            return $mapping->to->applyTo($nodes);
+        }
+
+        return $defaultTag === null ? $nodes : self::wrap($defaultTag, $nodes);
     }
 
     /**
