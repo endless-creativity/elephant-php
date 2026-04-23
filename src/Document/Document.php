@@ -11,7 +11,9 @@ final readonly class Document implements Node
     /**
      * @param  list<Node>  $children
      */
-    public function __construct(public array $children = [])
-    {
+    public function __construct(
+        public array $children = [],
+        public Notes $notes = new Notes(),
+    ) {
     }
 }

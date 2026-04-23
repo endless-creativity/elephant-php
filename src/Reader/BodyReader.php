@@ -10,6 +10,8 @@ use Closure;
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Image;
 use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
+use EndlessCreativity\ElephantPhp\Document\NoteReference;
+use EndlessCreativity\ElephantPhp\Document\NoteType;
 use EndlessCreativity\ElephantPhp\Document\NumberingLevel;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
@@ -88,6 +90,8 @@ final class BodyReader
             'w:tc' => $this->readTableCell($element),
             'w:drawing' => $this->readDrawingChildren($element),
             'wp:inline', 'wp:anchor' => $this->readDrawingElement($element),
+            'w:footnoteReference' => self::readNoteReference($element, NoteType::Footnote),
+            'w:endnoteReference' => self::readNoteReference($element, NoteType::Endnote),
             default => isset(self::IGNORED_ELEMENTS[$element->name])
                 ? Result::success(null)
                 : new Result(
@@ -497,6 +501,19 @@ final class BodyReader
         }
 
         return $result;
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private static function readNoteReference(Element $element, NoteType $noteType): Result
+    {
+        $noteId = $element->attribute('w:id');
+        if ($noteId === null) {
+            return Result::success(null);
+        }
+
+        return Result::success(new NoteReference(noteType: $noteType, noteId: $noteId));
     }
 
     private static function replaceFragment(string $uri, string $fragment): string

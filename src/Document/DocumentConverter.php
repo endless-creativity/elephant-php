@@ -25,6 +25,17 @@ final class DocumentConverter
 {
     private readonly StyleMap $styleMap;
 
+    /**
+     * Per-conversion mutable state. Reset at the start of every
+     * convertWith() so a single converter instance can be reused safely
+     * across documents (PHP is single-threaded per request anyway).
+     *
+     * @var list<NoteReference>
+     */
+    private array $noteReferences = [];
+
+    private int $noteCounter = 1;
+
     public function __construct(
         ?StyleMap $styleMap = null,
         private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
@@ -54,13 +65,78 @@ final class DocumentConverter
      */
     private function convertWith(Document $document, callable $writer): Result
     {
+        $this->noteReferences = [];
+        $this->noteCounter = 1;
+
         $messages = [];
         $htmlNodes = $this->convertNodes($document->children, $messages);
+
+        $noteItems = $this->renderCollectedNotes($document->notes, $messages);
+        if ($noteItems !== []) {
+            $htmlNodes[] = new HtmlElement(
+                tag: new Tag(tagName: 'ol'),
+                children: $noteItems,
+            );
+        }
 
         return new Result(
             value: $writer(Simplifier::simplify($htmlNodes)),
             messages: $messages,
         );
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlElement>
+     */
+    private function renderCollectedNotes(Notes $notes, array &$messages): array
+    {
+        $items = [];
+        foreach ($this->noteReferences as $reference) {
+            $note = $notes->resolve($reference);
+            if ($note !== null) {
+                $items[] = $this->renderNoteListItem($note, $messages);
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     */
+    private function renderNoteListItem(Note $note, array &$messages): HtmlElement
+    {
+        $body = $this->convertNodes($note->body, $messages);
+        // Mammoth appends an inline backlink in a non-fresh <p> so it merges
+        // into the trailing paragraph of the body when one exists.
+        $backLink = new HtmlElement(
+            tag: new Tag(tagName: 'p', fresh: false),
+            children: [
+                new HtmlText(value: ' '),
+                new HtmlElement(
+                    tag: new Tag(tagName: 'a', attributes: ['href' => '#'.self::noteRefId($note->noteType, $note->noteId)]),
+                    children: [new HtmlText(value: '↑')],
+                ),
+            ],
+        );
+
+        return new HtmlElement(
+            tag: new Tag(tagName: 'li', attributes: ['id' => self::noteId($note->noteType, $note->noteId)]),
+            children: [...$body, $backLink],
+        );
+    }
+
+    private static function noteId(NoteType $type, string $id): string
+    {
+        return $type->value.'-'.$id;
+    }
+
+    private static function noteRefId(NoteType $type, string $id): string
+    {
+        return $type->value.'-ref-'.$id;
     }
 
     /**
@@ -125,11 +201,32 @@ final class DocumentConverter
             return $this->convertImage($node, $messages);
         }
 
+        if ($node instanceof NoteReference) {
+            return [$this->convertNoteReference($node)];
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }
 
         return [];
+    }
+
+    private function convertNoteReference(NoteReference $reference): HtmlElement
+    {
+        $this->noteReferences[] = $reference;
+        $number = $this->noteCounter++;
+
+        return new HtmlElement(
+            tag: new Tag(tagName: 'sup'),
+            children: [new HtmlElement(
+                tag: new Tag(tagName: 'a', attributes: [
+                    'href' => '#'.self::noteId($reference->noteType, $reference->noteId),
+                    'id' => self::noteRefId($reference->noteType, $reference->noteId),
+                ]),
+                children: [new HtmlText(value: '['.$number.']')],
+            )],
+        );
     }
 
     /**

@@ -60,3 +60,17 @@ it('converts tiny-picture.docx into a paragraph with an embedded data-URI <img>'
 
     expect($result->value)->toBe('<p><img src="'.$expectedSrc.'" /></p>');
 });
+
+it('converts footnotes.docx with note references and a notes section', function (): void {
+    $html = (new Converter())->convertToHtml(fixture('footnotes.docx'))->value;
+
+    expect($html)->toContain('Ouch');
+    expect($html)->toContain('<sup><a href="#footnote-1" id="footnote-ref-1">[1]</a></sup>');
+    expect($html)->toContain('<sup><a href="#footnote-2" id="footnote-ref-2">[2]</a></sup>');
+    expect($html)->toContain('<ol>');
+    expect($html)->toContain('<li id="footnote-1">');
+    expect($html)->toContain('A tachyon walks into a bar.');
+    expect($html)->toContain('<li id="footnote-2">');
+    expect($html)->toContain('Fin.');
+    expect($html)->toContain('<a href="#footnote-ref-1">↑</a>');
+});

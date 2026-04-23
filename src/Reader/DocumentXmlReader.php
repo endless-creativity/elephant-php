@@ -7,14 +7,17 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp\Reader;
 
 use EndlessCreativity\ElephantPhp\Document\Document;
+use EndlessCreativity\ElephantPhp\Document\Notes;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
 use EndlessCreativity\ElephantPhp\Result;
 use RuntimeException;
 
 final readonly class DocumentXmlReader
 {
-    public function __construct(private BodyReader $bodyReader)
-    {
+    public function __construct(
+        private BodyReader $bodyReader,
+        private Notes $notes = new Notes(),
+    ) {
     }
 
     /**
@@ -28,6 +31,9 @@ final readonly class DocumentXmlReader
         }
 
         return $this->bodyReader->readXmlElements($body->children)
-            ->map(fn (array $children): Document => new Document(children: $children));
+            ->map(fn (array $children): Document => new Document(
+                children: $children,
+                notes: $this->notes,
+            ));
     }
 }

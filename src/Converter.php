@@ -7,12 +7,15 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp;
 
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
+use EndlessCreativity\ElephantPhp\Document\Notes;
+use EndlessCreativity\ElephantPhp\Document\NoteType;
 use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
 use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypes;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypesReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
+use EndlessCreativity\ElephantPhp\Reader\NotesReader;
 use EndlessCreativity\ElephantPhp\Reader\Numbering;
 use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
 use EndlessCreativity\ElephantPhp\Reader\Relationships;
@@ -129,18 +132,46 @@ final class Converter
             ))
             : ContentTypes::default();
 
+        $bodyReader = new BodyReader(
+            styles: $styles,
+            relationships: $relationships,
+            numbering: $numbering,
+            contentTypes: $contentTypes,
+            imageReader: static fn (string $path): string => $zip->read($path),
+        );
+
+        $notesReader = new NotesReader($bodyReader);
+        $noteList = [];
+        $noteMessages = [];
+        $noteParts = [
+            [NoteType::Footnote, 'word/footnotes.xml'],
+            [NoteType::Endnote, 'word/endnotes.xml'],
+        ];
+        foreach ($noteParts as [$type, $entryName]) {
+            if (! $zip->exists($entryName)) {
+                continue;
+            }
+            $notesResult = $notesReader->readFromXml(
+                XmlReader::readString(
+                    self::stripUtf8Bom($zip->read($entryName)),
+                    self::OFFICE_XML_NAMESPACE_MAP,
+                ),
+                $type,
+            );
+            foreach ($notesResult->value as $note) {
+                $noteList[] = $note;
+            }
+            foreach ($notesResult->messages as $message) {
+                $noteMessages[] = $message;
+            }
+        }
+        $notes = new Notes($noteList);
+
         $documentXml = self::stripUtf8Bom($zip->read('word/document.xml'));
         $documentElement = XmlReader::readString($documentXml, self::OFFICE_XML_NAMESPACE_MAP);
 
-        $documentResult = (new DocumentXmlReader(
-            new BodyReader(
-                styles: $styles,
-                relationships: $relationships,
-                numbering: $numbering,
-                contentTypes: $contentTypes,
-                imageReader: static fn (string $path): string => $zip->read($path),
-            ),
-        ))->convertXmlToDocument($documentElement);
+        $documentResult = (new DocumentXmlReader($bodyReader, $notes))
+            ->convertXmlToDocument($documentElement);
 
         $converter = new DocumentConverter(
             styleMap: $this->styleMap,
@@ -150,7 +181,7 @@ final class Converter
 
         return new Result(
             value: $htmlResult->value,
-            messages: array_merge($documentResult->messages, $htmlResult->messages),
+            messages: array_merge($noteMessages, $documentResult->messages, $htmlResult->messages),
         );
     }
 
