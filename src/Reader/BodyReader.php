@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Reader;
 
+use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
@@ -41,8 +42,10 @@ final class BodyReader
         'w:tcPr' => true,
     ];
 
-    public function __construct(private readonly Styles $styles = new Styles())
-    {
+    public function __construct(
+        private readonly Styles $styles = new Styles(),
+        private readonly Relationships $relationships = new Relationships(),
+    ) {
     }
 
     /**
@@ -54,6 +57,7 @@ final class BodyReader
             'w:p' => $this->readParagraph($element),
             'w:r' => $this->readRun($element),
             'w:t' => Result::success(new Text(value: $element->text())),
+            'w:hyperlink' => $this->readHyperlink($element),
             default => isset(self::IGNORED_ELEMENTS[$element->name])
                 ? Result::success(null)
                 : new Result(
@@ -138,6 +142,40 @@ final class BodyReader
             ),
             messages: array_merge($childrenResult->messages, $styleResult->messages),
         );
+    }
+
+    /**
+     * @return Result<DocumentNode>
+     */
+    private function readHyperlink(Element $element): Result
+    {
+        $relationshipId = $element->attribute('r:id');
+        $anchor = $element->attribute('w:anchor');
+        $targetFrame = $element->attribute('w:tgtFrame');
+
+        return $this->readXmlElements($element->children)
+            ->map(function (array $children) use ($relationshipId, $anchor, $targetFrame): Hyperlink {
+                if ($relationshipId !== null) {
+                    $href = $this->relationships->findTargetByRelationshipId($relationshipId) ?? '';
+                    if ($anchor !== null) {
+                        $href = self::replaceFragment($href, $anchor);
+                    }
+
+                    return new Hyperlink(children: $children, href: $href, targetFrame: $targetFrame);
+                }
+
+                return new Hyperlink(children: $children, anchor: $anchor, targetFrame: $targetFrame);
+            });
+    }
+
+    private static function replaceFragment(string $uri, string $fragment): string
+    {
+        $hashIndex = mb_strpos($uri, '#');
+        if ($hashIndex !== false) {
+            $uri = mb_substr($uri, 0, $hashIndex);
+        }
+
+        return $uri.'#'.$fragment;
     }
 
     /**

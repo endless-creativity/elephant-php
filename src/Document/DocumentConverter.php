@@ -89,11 +89,40 @@ final class DocumentConverter
             return $this->convertRun($node, $messages);
         }
 
+        if ($node instanceof Hyperlink) {
+            return $this->convertHyperlink($node, $messages);
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }
 
         return [];
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlNode>
+     */
+    private function convertHyperlink(Hyperlink $hyperlink, array &$messages): array
+    {
+        $children = $this->convertNodes($hyperlink->children, $messages);
+
+        if ($hyperlink->href === null && $hyperlink->anchor === null) {
+            return $children;
+        }
+
+        $href = $hyperlink->anchor !== null ? '#'.$hyperlink->anchor : ($hyperlink->href ?? '');
+        $attributes = ['href' => $href];
+        if ($hyperlink->targetFrame !== null) {
+            $attributes['target'] = $hyperlink->targetFrame;
+        }
+
+        return [new HtmlElement(
+            tag: new Tag(tagName: 'a', attributes: $attributes, fresh: false),
+            children: $children,
+        )];
     }
 
     /**
