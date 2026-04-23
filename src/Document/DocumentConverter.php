@@ -55,7 +55,7 @@ final class DocumentConverter
         }
 
         if ($node instanceof Run) {
-            return $this->convertNodes($node->children);
+            return $this->convertRun($node);
         }
 
         if ($node instanceof Text) {
@@ -63,5 +63,42 @@ final class DocumentConverter
         }
 
         return [];
+    }
+
+    /**
+     * @return list<HtmlNode>
+     */
+    private function convertRun(Run $run): array
+    {
+        $nodes = $this->convertNodes($run->children);
+
+        // Wrap from innermost to outermost, matching the push order in
+        // mammoth.js convertRun. <strong> ends up as the outermost wrapper.
+        if ($run->isStrikethrough) {
+            $nodes = self::wrap('s', $nodes);
+        }
+        if ($run->verticalAlignment === VerticalAlignment::Subscript) {
+            $nodes = self::wrap('sub', $nodes);
+        }
+        if ($run->verticalAlignment === VerticalAlignment::Superscript) {
+            $nodes = self::wrap('sup', $nodes);
+        }
+        if ($run->isItalic) {
+            $nodes = self::wrap('em', $nodes);
+        }
+        if ($run->isBold) {
+            $nodes = self::wrap('strong', $nodes);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param  list<HtmlNode>  $nodes
+     * @return list<HtmlNode>
+     */
+    private static function wrap(string $tagName, array $nodes): array
+    {
+        return [new HtmlElement(tag: new Tag(tagName: $tagName, fresh: false), children: $nodes)];
     }
 }

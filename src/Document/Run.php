@@ -15,6 +15,13 @@ final readonly class Run implements Node
         public array $children = [],
         public ?string $styleId = null,
         public ?string $styleName = null,
+        public bool $isBold = false,
+        public bool $isItalic = false,
+        public bool $isUnderline = false,
+        public bool $isStrikethrough = false,
+        public bool $isAllCaps = false,
+        public bool $isSmallCaps = false,
+        public VerticalAlignment $verticalAlignment = VerticalAlignment::Baseline,
     ) {
     }
 }

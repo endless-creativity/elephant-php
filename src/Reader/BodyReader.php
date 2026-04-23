@@ -10,6 +10,7 @@ use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
 use EndlessCreativity\ElephantPhp\Document\Text;
+use EndlessCreativity\ElephantPhp\Document\VerticalAlignment;
 use EndlessCreativity\ElephantPhp\Message;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Node as XmlNode;
@@ -94,7 +95,47 @@ final class BodyReader
      */
     private function readRun(Element $element): Result
     {
+        $properties = $element->firstOrEmpty('w:rPr');
+
         return $this->readXmlElements($element->children)
-            ->map(fn (array $children): Run => new Run(children: $children));
+            ->map(fn (array $children): Run => new Run(
+                children: $children,
+                isBold: self::readBoolean($properties->first('w:b')),
+                isItalic: self::readBoolean($properties->first('w:i')),
+                isUnderline: self::readUnderline($properties->first('w:u')),
+                isStrikethrough: self::readBoolean($properties->first('w:strike')),
+                isAllCaps: self::readBoolean($properties->first('w:caps')),
+                isSmallCaps: self::readBoolean($properties->first('w:smallCaps')),
+                verticalAlignment: self::readVerticalAlignment($properties->first('w:vertAlign')),
+            ));
+    }
+
+    private static function readBoolean(?Element $element): bool
+    {
+        if ($element === null) {
+            return false;
+        }
+        $value = $element->attribute('w:val');
+
+        return $value !== 'false' && $value !== '0';
+    }
+
+    private static function readUnderline(?Element $element): bool
+    {
+        if ($element === null) {
+            return false;
+        }
+        $value = $element->attribute('w:val');
+
+        return $value !== null && $value !== 'false' && $value !== '0' && $value !== 'none';
+    }
+
+    private static function readVerticalAlignment(?Element $element): VerticalAlignment
+    {
+        if ($element === null) {
+            return VerticalAlignment::Baseline;
+        }
+
+        return VerticalAlignment::tryFrom($element->attribute('w:val') ?? '') ?? VerticalAlignment::Baseline;
     }
 }
