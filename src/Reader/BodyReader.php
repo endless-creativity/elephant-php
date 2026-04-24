@@ -92,6 +92,7 @@ final class BodyReader
             'w:tab' => Result::success(new Tab()),
             'w:noBreakHyphen' => Result::success(new Text(value: "\u{2011}")),
             'w:softHyphen' => Result::success(new Text(value: "\u{00AD}")),
+            'w:sym' => self::readSymbol($element),
             'w:br' => Result::success(self::readBreak($element)),
             'w:bookmarkStart' => Result::success(self::readBookmarkStart($element)),
             'w:hyperlink' => $this->readHyperlink($element),
@@ -596,6 +597,36 @@ final class BodyReader
         }
 
         return $result;
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private static function readSymbol(Element $element): Result
+    {
+        $font = $element->attribute('w:font');
+        $char = $element->attribute('w:char');
+        if ($font === null || $char === null) {
+            return Result::success(null);
+        }
+
+        $unicode = DingbatToUnicode::lookup($font, $char);
+        // Word sometimes prefixes the character with "F0" for the Symbol font;
+        // mammoth retries the lookup after stripping it.
+        if ($unicode === null && preg_match('/^F0..$/i', $char) === 1) {
+            $unicode = DingbatToUnicode::lookup($font, mb_substr($char, 2));
+        }
+
+        if ($unicode === null) {
+            return new Result(
+                value: null,
+                messages: [Message::warning(
+                    "A w:sym element with an unsupported character was ignored: char {$char} in font {$font}",
+                )],
+            );
+        }
+
+        return Result::success(new Text(value: $unicode));
     }
 
     private static function readBreak(Element $element): BreakElement
