@@ -18,6 +18,7 @@ use EndlessCreativity\ElephantPhp\Reader\CommentsReader;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypes;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypesReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
+use EndlessCreativity\ElephantPhp\Reader\EmbeddedStyleMap;
 use EndlessCreativity\ElephantPhp\Reader\NotesReader;
 use EndlessCreativity\ElephantPhp\Reader\Numbering;
 use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
@@ -97,6 +98,27 @@ final class Converter
             $path,
             static fn (DocumentConverter $converter, $document): Result => $converter->convertToMarkdown($document),
         );
+    }
+
+    /**
+     * Reads the style map embedded in a docx as a mammoth-compatible part
+     * (`mammoth/style-map`), returning the raw rules string or null when
+     * the part is absent.
+     */
+    public static function readEmbeddedStyleMap(string $path): ?string
+    {
+        return EmbeddedStyleMap::read(ZipFile::openPath($path));
+    }
+
+    /**
+     * Embeds the given style-map rules into a copy of the docx at $path,
+     * registering the part with the relationships table and content types
+     * exactly as mammoth does. Returns the modified docx as a byte string;
+     * the source file is untouched.
+     */
+    public static function embedStyleMap(string $path, string $styleMap): string
+    {
+        return EmbeddedStyleMap::embed($path, $styleMap);
     }
 
     /**
