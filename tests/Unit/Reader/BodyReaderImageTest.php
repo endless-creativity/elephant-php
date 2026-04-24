@@ -103,6 +103,76 @@ it('warns and drops the image when the relationship is unknown', function (): vo
         ->toBe('Could not find image file for a:blip element');
 });
 
+it('wraps the image in a Hyperlink when wp:docPr/a:hlinkClick has r:id', function (): void {
+    $relationships = new Relationships([
+        new Relationship(relationshipId: 'rId5', target: 'media/image1.png', type: IMAGE_REL_TYPE),
+        new Relationship(
+            relationshipId: 'rId7',
+            target: 'http://example.com/',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        ),
+    ]);
+    $reader = new BodyReader(
+        relationships: $relationships,
+        contentTypes: new ContentTypes(),
+        imageReader: static fn (): string => 'PNG',
+    );
+
+    $blip = new Element(name: 'a:blip', attributes: ['r:embed' => 'rId5']);
+    $picPic = new Element(name: 'pic:pic', children: [
+        new Element(name: 'pic:blipFill', children: [$blip]),
+    ]);
+    $graphic = new Element(name: 'a:graphic', children: [
+        new Element(name: 'a:graphicData', children: [$picPic]),
+    ]);
+    $hlink = new Element(name: 'a:hlinkClick', attributes: ['r:id' => 'rId7']);
+    $docPr = new Element(name: 'wp:docPr', children: [$hlink]);
+    $drawingXml = new Element(name: 'w:drawing', children: [
+        new Element(name: 'wp:inline', children: [$docPr, $graphic]),
+    ]);
+
+    $result = $reader->readXmlElement($drawingXml);
+
+    $hyperlink = $result->value;
+    expect($hyperlink)->toBeInstanceOf(\EndlessCreativity\ElephantPhp\Document\Hyperlink::class);
+    expect($hyperlink instanceof \EndlessCreativity\ElephantPhp\Document\Hyperlink ? $hyperlink->href : null)
+        ->toBe('http://example.com/');
+    expect($hyperlink instanceof \EndlessCreativity\ElephantPhp\Document\Hyperlink ? $hyperlink->children[0] : null)
+        ->toBeInstanceOf(Image::class);
+});
+
+it('reads r:link as an external image whose bytes come from disk', function (): void {
+    $tmp = (string) tempnam(sys_get_temp_dir(), 'elephant-img-');
+    file_put_contents($tmp, 'EXTERNAL');
+
+    $relationships = new Relationships([
+        new Relationship(relationshipId: 'rId9', target: $tmp, type: IMAGE_REL_TYPE),
+    ]);
+    $reader = new BodyReader(
+        relationships: $relationships,
+        contentTypes: new ContentTypes(),
+    );
+
+    $blip = new Element(name: 'a:blip', attributes: ['r:link' => 'rId9']);
+    $picPic = new Element(name: 'pic:pic', children: [
+        new Element(name: 'pic:blipFill', children: [$blip]),
+    ]);
+    $graphic = new Element(name: 'a:graphic', children: [
+        new Element(name: 'a:graphicData', children: [$picPic]),
+    ]);
+    $drawingXml = new Element(name: 'w:drawing', children: [
+        new Element(name: 'wp:inline', children: [$graphic]),
+    ]);
+
+    $result = $reader->readXmlElement($drawingXml);
+
+    $image = $result->value;
+    expect($image)->toBeInstanceOf(Image::class);
+    expect($image instanceof Image ? ($image->readBytes)() : null)->toBe('EXTERNAL');
+
+    @unlink($tmp);
+});
+
 it('warns when the image content type is not browser-friendly', function (): void {
     $relationships = new Relationships([
         new Relationship(relationshipId: 'rId5', target: 'media/image1.bmp', type: IMAGE_REL_TYPE),

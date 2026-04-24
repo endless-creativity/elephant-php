@@ -313,31 +313,22 @@ final class BodyReader
             return Result::success(null);
         }
 
-        $relationshipId = $blip->attribute('r:embed');
-        if ($relationshipId === null) {
+        $imageDescriptor = $this->resolveBlipImage($blip);
+        if ($imageDescriptor === null) {
             return new Result(
                 value: null,
                 messages: [Message::warning('Could not find image file for a:blip element')],
             );
         }
+        [$path, $reader] = $imageDescriptor;
 
-        $target = $this->relationships->findTargetByRelationshipId($relationshipId);
-        if ($target === null || $this->imageReader === null) {
-            return new Result(
-                value: null,
-                messages: [Message::warning('Could not find image file for a:blip element')],
-            );
-        }
-
-        $path = self::joinImagePath('word', $target);
         $contentType = $this->contentTypes->findContentType($path);
 
         $docPr = $inline->firstOrEmpty('wp:docPr');
         $altText = self::firstNonBlank($docPr->attribute('descr'), $docPr->attribute('title'));
 
-        $reader = $this->imageReader;
         $image = new Image(
-            readBytes: static fn (): string => $reader($path),
+            readBytes: $reader,
             contentType: $contentType,
             altText: $altText,
         );
@@ -349,7 +340,67 @@ final class BodyReader
             );
         }
 
+        // wp:docPr/a:hlinkClick wraps the image in a hyperlink. mammoth
+        // does this around an already-built image element.
+        $hlinkRelId = $docPr->firstOrEmpty('a:hlinkClick')->attribute('r:id');
+        if ($hlinkRelId !== null) {
+            $href = $this->relationships->findTargetByRelationshipId($hlinkRelId);
+            if ($href !== null) {
+                return new Result(
+                    value: new Hyperlink(children: [$image], href: $href),
+                    messages: $messages,
+                );
+            }
+        }
+
         return new Result(value: $image, messages: $messages);
+    }
+
+    /**
+     * Resolves the image bytes reader for an a:blip element, supporting
+     * both r:embed (image inside the docx zip) and r:link (linked from
+     * disk via an absolute URI).
+     *
+     * @return ?array{string, Closure(): string}  [zip-or-disk path, reader closure]
+     */
+    private function resolveBlipImage(Element $blip): ?array
+    {
+        $embedId = $blip->attribute('r:embed');
+        $linkId = $blip->attribute('r:link');
+
+        if ($embedId !== null) {
+            $target = $this->relationships->findTargetByRelationshipId($embedId);
+            if ($target === null || $this->imageReader === null) {
+                return null;
+            }
+            $path = self::joinImagePath('word', $target);
+            $reader = $this->imageReader;
+
+            return [$path, static fn (): string => $reader($path)];
+        }
+
+        if ($linkId !== null) {
+            $target = $this->relationships->findTargetByRelationshipId($linkId);
+            if ($target === null) {
+                return null;
+            }
+
+            // r:link points at a path on disk relative to (or absolute
+            // from) the docx host. We try to read it directly; if the
+            // file isn't available the closure throws when invoked, and
+            // DocumentConverter records that as a Message::error and
+            // drops the image (mammoth's recoveringConvertImage).
+            return [$target, static function () use ($target): string {
+                $bytes = @file_get_contents($target);
+                if ($bytes === false) {
+                    throw new \RuntimeException("Could not read linked image at {$target}");
+                }
+
+                return $bytes;
+            }];
+        }
+
+        return null;
     }
 
     private static function joinImagePath(string $base, string $target): string
