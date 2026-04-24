@@ -47,6 +47,11 @@ final readonly class Matcher
         return $this->matchesStyle($run->styleId, $run->styleName);
     }
 
+    public function matchesCommentReference(): bool
+    {
+        return $this->kind === MatcherKind::CommentReference;
+    }
+
     private function runHasProperty(Run $run, RunProperty $property): bool
     {
         return match ($property) {

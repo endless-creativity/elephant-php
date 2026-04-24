@@ -36,11 +36,19 @@ final class DocumentConverter
 
     private int $noteCounter = 1;
 
+    /** @var list<array{label: string, comment: Comment}> */
+    private array $referencedComments = [];
+
+    private int $commentCounter = 1;
+
+    private Comments $comments;
+
     public function __construct(
         ?StyleMap $styleMap = null,
         private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
     ) {
         $this->styleMap = $styleMap ?? StyleMap::default();
+        $this->comments = new Comments();
     }
 
     /**
@@ -67,6 +75,9 @@ final class DocumentConverter
     {
         $this->noteReferences = [];
         $this->noteCounter = 1;
+        $this->referencedComments = [];
+        $this->commentCounter = 1;
+        $this->comments = $document->comments;
 
         $messages = [];
         $htmlNodes = $this->convertNodes($document->children, $messages);
@@ -76,6 +87,14 @@ final class DocumentConverter
             $htmlNodes[] = new HtmlElement(
                 tag: new Tag(tagName: 'ol'),
                 children: $noteItems,
+            );
+        }
+
+        $commentItems = $this->renderCollectedComments($messages);
+        if ($commentItems !== []) {
+            $htmlNodes[] = new HtmlElement(
+                tag: new Tag(tagName: 'dl'),
+                children: $commentItems,
             );
         }
 
@@ -127,6 +146,87 @@ final class DocumentConverter
             tag: new Tag(tagName: 'li', attributes: ['id' => self::noteId($note->noteType, $note->noteId)]),
             children: [...$body, $backLink],
         );
+    }
+
+    /**
+     * @return list<HtmlNode>
+     */
+    private function convertCommentReference(CommentReference $reference): array
+    {
+        $mapping = $this->styleMap->findForCommentReference();
+        if ($mapping === null) {
+            // mammoth's default is htmlPaths.ignore: no inline marker, no
+            // <dl> entry. Users opt in via "comment-reference => sup" or
+            // similar.
+            return [];
+        }
+        $comment = $this->comments->findById($reference->commentId);
+        if ($comment === null) {
+            return [];
+        }
+
+        $count = $this->commentCounter++;
+        $label = '['.($comment->authorInitials ?? '').$count.']';
+        $this->referencedComments[] = ['label' => $label, 'comment' => $comment];
+
+        $anchor = new HtmlElement(
+            tag: new Tag(tagName: 'a', attributes: [
+                'href' => '#'.self::commentTargetId($comment->commentId),
+                'id' => self::commentReferenceId($comment->commentId),
+            ]),
+            children: [new HtmlText(value: $label)],
+        );
+
+        return $mapping->to->applyTo([$anchor]);
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     * @return list<HtmlElement>
+     */
+    private function renderCollectedComments(array &$messages): array
+    {
+        $items = [];
+        foreach ($this->referencedComments as $entry) {
+            $comment = $entry['comment'];
+            $body = $this->convertNodes($comment->body, $messages);
+            $body[] = new HtmlElement(
+                tag: new Tag(tagName: 'p', fresh: false),
+                children: [
+                    new HtmlText(value: ' '),
+                    new HtmlElement(
+                        tag: new Tag(tagName: 'a', attributes: [
+                            'href' => '#'.self::commentReferenceId($comment->commentId),
+                        ]),
+                        children: [new HtmlText(value: '↑')],
+                    ),
+                ],
+            );
+
+            $items[] = new HtmlElement(
+                tag: new Tag(tagName: 'dt', attributes: [
+                    'id' => self::commentTargetId($comment->commentId),
+                ]),
+                children: [new HtmlText(value: 'Comment '.$entry['label'])],
+            );
+            $items[] = new HtmlElement(
+                tag: new Tag(tagName: 'dd'),
+                children: $body,
+            );
+        }
+
+        return $items;
+    }
+
+    private static function commentTargetId(string $id): string
+    {
+        return 'comment-'.$id;
+    }
+
+    private static function commentReferenceId(string $id): string
+    {
+        return 'comment-ref-'.$id;
     }
 
     private static function noteId(NoteType $type, string $id): string
@@ -206,10 +306,7 @@ final class DocumentConverter
         }
 
         if ($node instanceof CommentReference) {
-            // Mammoth's default for comment-reference is htmlPaths.ignore
-            // (the inline marker is dropped). A future DSL `comment-reference`
-            // matcher will let users opt in.
-            return [];
+            return $this->convertCommentReference($node);
         }
 
         if ($node instanceof Text) {

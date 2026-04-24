@@ -10,4 +10,5 @@ enum MatcherKind: string
 {
     case Paragraph = 'paragraph';
     case Run = 'run';
+    case CommentReference = 'commentReference';
 }

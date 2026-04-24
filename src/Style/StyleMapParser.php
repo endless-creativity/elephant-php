@@ -99,6 +99,11 @@ final class StyleMapParser
             );
         }
 
+        // Same shape: comment-reference is a self-contained matcher kind.
+        if ($kindToken['value'] === 'comment-reference') {
+            return new Matcher(kind: MatcherKind::CommentReference);
+        }
+
         $kind = match ($kindToken['value']) {
             'p' => MatcherKind::Paragraph,
             'r' => MatcherKind::Run,
