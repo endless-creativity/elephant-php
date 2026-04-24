@@ -23,6 +23,8 @@ final readonly class Matcher
         public StyleNameMatch $styleNameMatch = StyleNameMatch::Equal,
         /** Set when the matcher is one of mammoth's run-property forms (b, i, u, strike, all-caps, small-caps). */
         public ?RunProperty $runProperty = null,
+        /** Color requested by a `highlight[color='X']` matcher; null means "any color". */
+        public ?string $highlightColor = null,
     ) {
     }
 
@@ -50,6 +52,15 @@ final readonly class Matcher
     public function matchesCommentReference(): bool
     {
         return $this->kind === MatcherKind::CommentReference;
+    }
+
+    public function matchesHighlight(string $color): bool
+    {
+        if ($this->kind !== MatcherKind::Highlight) {
+            return false;
+        }
+
+        return $this->highlightColor === null || $this->highlightColor === $color;
     }
 
     private function runHasProperty(Run $run, RunProperty $property): bool

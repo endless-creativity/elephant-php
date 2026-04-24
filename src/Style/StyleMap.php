@@ -64,6 +64,21 @@ final readonly class StyleMap
     }
 
     /**
+     * Lookup for `highlight` / `highlight[color='X']` matchers. Returns the
+     * first matcher whose color is null (matches any) or matches $color.
+     */
+    public function findForHighlight(string $color): ?StyleMapping
+    {
+        foreach ($this->mappings as $mapping) {
+            if ($mapping->from->matchesHighlight($color)) {
+                return $mapping;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Lookup for the comment-reference matcher kind. mammoth's default
      * for comment references is htmlPaths.ignore, so this returns null
      * unless the user explicitly provides a `comment-reference => ...`

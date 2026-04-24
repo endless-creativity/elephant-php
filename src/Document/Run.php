@@ -22,6 +22,9 @@ final readonly class Run implements Node
         public bool $isAllCaps = false,
         public bool $isSmallCaps = false,
         public VerticalAlignment $verticalAlignment = VerticalAlignment::Baseline,
+        public ?string $highlight = null,
+        public ?string $font = null,
+        public ?float $fontSize = null,
     ) {
     }
 }

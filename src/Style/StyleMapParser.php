@@ -104,6 +104,22 @@ final class StyleMapParser
             return new Matcher(kind: MatcherKind::CommentReference);
         }
 
+        // highlight or highlight[color='X']
+        if ($kindToken['value'] === 'highlight') {
+            $color = null;
+            if ($this->consumeIfType('open-square-bracket')) {
+                $name = $this->expectType('identifier');
+                if ($name['value'] !== 'color') {
+                    throw $this->error("Expected 'color' inside highlight[...], got '{$name['value']}'", $name['position']);
+                }
+                $this->expectType('equals');
+                $color = $this->expectType('string')['value'];
+                $this->expectType('close-square-bracket');
+            }
+
+            return new Matcher(kind: MatcherKind::Highlight, highlightColor: $color);
+        }
+
         $kind = match ($kindToken['value']) {
             'p' => MatcherKind::Paragraph,
             'r' => MatcherKind::Run,

@@ -208,9 +208,42 @@ final class BodyReader
                 isAllCaps: self::readBoolean($properties->first('w:caps')),
                 isSmallCaps: self::readBoolean($properties->first('w:smallCaps')),
                 verticalAlignment: self::readVerticalAlignment($properties->first('w:vertAlign')),
+                highlight: self::readHighlight($properties->first('w:highlight')),
+                font: $properties->first('w:rFonts')?->attribute('w:ascii'),
+                fontSize: self::readFontSize($properties->first('w:sz')),
             ),
             messages: array_merge($childrenResult->messages, $styleResult->messages),
         );
+    }
+
+    private static function readHighlight(?Element $element): ?string
+    {
+        if ($element === null) {
+            return null;
+        }
+        $value = $element->attribute('w:val');
+
+        // Mammoth treats "none" as not highlighted, drops empty values.
+        if ($value === null || $value === '' || $value === 'none') {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private static function readFontSize(?Element $element): ?float
+    {
+        if ($element === null) {
+            return null;
+        }
+        $value = $element->attribute('w:val');
+        // w:sz is in half-points; halve to get the size in points. Only
+        // accept all-digit values, matching mammoth.
+        if ($value === null || preg_match('/^[0-9]+$/', $value) !== 1) {
+            return null;
+        }
+
+        return ((int) $value) / 2;
     }
 
     /**

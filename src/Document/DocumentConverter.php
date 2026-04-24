@@ -582,8 +582,14 @@ final class DocumentConverter
         // mammoth.js convertRun's push order. Each property may be wrapped
         // by either a user-supplied DSL matcher (e.g. "b => mark") or, if
         // none is set, mammoth's default tag for that property.
-        $nodes = $this->wrapRunProperty($run->isAllCaps, RunProperty::AllCaps, null, $nodes);
+        if ($run->highlight !== null) {
+            $highlightMapping = $this->styleMap->findForHighlight($run->highlight);
+            if ($highlightMapping !== null) {
+                $nodes = $highlightMapping->to->applyTo($nodes);
+            }
+        }
         $nodes = $this->wrapRunProperty($run->isSmallCaps, RunProperty::SmallCaps, null, $nodes);
+        $nodes = $this->wrapRunProperty($run->isAllCaps, RunProperty::AllCaps, null, $nodes);
         $nodes = $this->wrapRunProperty($run->isStrikethrough, RunProperty::Strikethrough, 's', $nodes);
         $nodes = $this->wrapRunProperty($run->isUnderline, RunProperty::Underline, null, $nodes);
         if ($run->verticalAlignment === VerticalAlignment::Subscript) {
