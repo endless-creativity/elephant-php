@@ -372,17 +372,29 @@ final class DocumentConverter
             tag: new Tag(tagName: 'li', fresh: true),
             children: $children,
         );
+        // Deepest <list> wraps just this fresh <li>. It may merge with a
+        // sibling deepest list of the same kind, but should NOT merge across
+        // ul/ol boundaries -- so no matchAlternativeTagNames here.
         $node = new HtmlElement(
             tag: new Tag(tagName: $listTag, fresh: false),
             children: [$node],
         );
+        // Outer wrappers (one (li, list) pair per ancestor level) merge into
+        // whatever the parent level previously emitted, even when the parent
+        // is the other list kind. matchAlternativeTagNames lets a level-1
+        // <ol> wrapper collapse into a level-0 <ul> (and vice versa),
+        // matching mammoth's `ul|ol` multi-tag matcher.
         for ($depth = 0; $depth < $numbering->level; $depth++) {
             $node = new HtmlElement(
                 tag: new Tag(tagName: 'li', fresh: false),
                 children: [$node],
             );
             $node = new HtmlElement(
-                tag: new Tag(tagName: $listTag, fresh: false),
+                tag: new Tag(
+                    tagName: $listTag,
+                    fresh: false,
+                    matchAlternativeTagNames: ['ul', 'ol'],
+                ),
                 children: [$node],
             );
         }

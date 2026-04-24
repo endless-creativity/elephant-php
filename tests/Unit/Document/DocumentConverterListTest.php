@@ -64,6 +64,22 @@ it('keeps multiple consecutive nested items inside the same nested list', functi
     ))->toBe('<ul><li>A<ul><li>a1</li><li>a2</li></ul></li><li>B</li></ul>');
 });
 
+it('nests an ordered child inside an unordered parent (mixed kinds)', function (): void {
+    expect(htmlOf(
+        listItem(level: 0, isOrdered: false, text: 'A'),
+        listItem(level: 1, isOrdered: true, text: 'a1'),
+        listItem(level: 1, isOrdered: true, text: 'a2'),
+        listItem(level: 0, isOrdered: false, text: 'B'),
+    ))->toBe('<ul><li>A<ol><li>a1</li><li>a2</li></ol></li><li>B</li></ul>');
+});
+
+it('nests an unordered child inside an ordered parent (mixed kinds)', function (): void {
+    expect(htmlOf(
+        listItem(level: 0, isOrdered: true, text: 'A'),
+        listItem(level: 1, isOrdered: false, text: 'a1'),
+    ))->toBe('<ol><li>A<ul><li>a1</li></ul></li></ol>');
+});
+
 it('breaks the list when a non-list paragraph appears between items', function (): void {
     $paragraph = new Paragraph(children: [new Run(children: [new Text(value: 'between')])]);
 
