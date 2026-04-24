@@ -39,7 +39,53 @@ final class XmlReader
             throw new RuntimeException('XML document has no root element');
         }
 
-        return self::convertElement($root, $namespaceMap);
+        return self::collapseAlternateContentTree(self::convertElement($root, $namespaceMap));
+    }
+
+    /**
+     * Walks the tree and replaces every mc:AlternateContent element with the
+     * children of its mc:Fallback child. mammoth applies this in
+     * lib/docx/office-xml-reader.js so the docx body never sees Office's
+     * forwards-compat fallbacks. Done here so every consumer of XmlReader
+     * gets the same behaviour.
+     */
+    private static function collapseAlternateContentTree(Element $element): Element
+    {
+        return new Element(
+            name: $element->name,
+            attributes: $element->attributes,
+            children: self::collapseAlternateContentChildren($element->children),
+        );
+    }
+
+    /**
+     * @param  list<Node>  $children
+     * @return list<Node>
+     */
+    private static function collapseAlternateContentChildren(array $children): array
+    {
+        $result = [];
+        foreach ($children as $child) {
+            if (! $child instanceof Element) {
+                $result[] = $child;
+
+                continue;
+            }
+            if ($child->name === 'mc:AlternateContent') {
+                $fallback = $child->first('mc:Fallback');
+                if ($fallback === null) {
+                    continue;
+                }
+                foreach (self::collapseAlternateContentChildren($fallback->children) as $node) {
+                    $result[] = $node;
+                }
+
+                continue;
+            }
+            $result[] = self::collapseAlternateContentTree($child);
+        }
+
+        return $result;
     }
 
     /**
