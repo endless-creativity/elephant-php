@@ -10,6 +10,7 @@ use EndlessCreativity\ElephantPhp\Document\Comments;
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Document\Notes;
 use EndlessCreativity\ElephantPhp\Document\NoteType;
+use EndlessCreativity\ElephantPhp\Document\RawTextExtractor;
 use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
 use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
@@ -95,6 +96,22 @@ final class Converter
         return $this->convert(
             $path,
             static fn (DocumentConverter $converter, $document): Result => $converter->convertToMarkdown($document),
+        );
+    }
+
+    /**
+     * Extracts plain text from the document body, mirroring mammoth's
+     * extractRawText. Style maps and the image handler are not consulted;
+     * paragraphs are separated by "\n\n", everything else just contributes
+     * its descendant text.
+     *
+     * @return Result<string>
+     */
+    public function extractRawText(string $path): Result
+    {
+        return $this->convert(
+            $path,
+            static fn (DocumentConverter $_, $document): Result => Result::success(RawTextExtractor::extract($document)),
         );
     }
 

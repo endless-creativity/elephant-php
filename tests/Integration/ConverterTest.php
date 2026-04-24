@@ -47,6 +47,18 @@ it('converts simple-list.docx to a markdown bullet list', function (): void {
     expect($result->value)->toBe("- Apple\n- Banana\n\n");
 });
 
+it('extracts raw text from single-paragraph.docx', function (): void {
+    $result = (new Converter())->extractRawText(fixture('single-paragraph.docx'));
+
+    expect($result->value)->toBe("Walking on imported air\n\n");
+});
+
+it('extracts raw text from simple-list.docx with each item as its own paragraph', function (): void {
+    $result = (new Converter())->extractRawText(fixture('simple-list.docx'));
+
+    expect($result->value)->toBe("Apple\n\nBanana\n\n");
+});
+
 it('converts tiny-picture.docx into a paragraph with an embedded data-URI <img>', function (): void {
     $result = (new Converter())->convertToHtml(fixture('tiny-picture.docx'));
 
