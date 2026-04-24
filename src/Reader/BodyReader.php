@@ -81,6 +81,21 @@ final class BodyReader
     }
 
     /**
+     * Mutable per-reading state for legacy hyperlinks expressed via
+     * `<w:fldChar>HYPERLINK ...<w:fldChar>` complex fields. The state grows
+     * during a body/notes/comments read and is consumed by the matching end
+     * fldChar; well-formed docx files always close their fldChars properly,
+     * so a single BodyReader can be reused across the four reads in
+     * Converter::convert without leakage.
+     *
+     * @var list<array{type: string, fldChar?: Element, options?: array{href?: string, anchor?: string}}>
+     */
+    private array $complexFieldStack = [];
+
+    /** @var list<string> */
+    private array $currentInstrText = [];
+
+    /**
      * @return Result<?DocumentNode>
      */
     public function readXmlElement(Element $element): Result
@@ -93,6 +108,8 @@ final class BodyReader
             'w:noBreakHyphen' => Result::success(new Text(value: "\u{2011}")),
             'w:softHyphen' => Result::success(new Text(value: "\u{00AD}")),
             'w:sym' => self::readSymbol($element),
+            'w:fldChar' => $this->readFldChar($element),
+            'w:instrText' => $this->readInstrText($element),
             'w:br' => Result::success(self::readBreak($element)),
             'w:bookmarkStart' => Result::success(self::readBookmarkStart($element)),
             'w:hyperlink' => $this->readHyperlink($element),
@@ -197,9 +214,21 @@ final class BodyReader
             finder: fn (string $id): ?Style => $this->styles->findCharacterStyleById($id),
         );
 
+        // If a complex-field HYPERLINK is currently open, mammoth wraps the
+        // run's children in a Hyperlink before constructing the Run.
+        $children = $childrenResult->value;
+        $hyperlinkOptions = $this->currentHyperlinkOptions();
+        if ($hyperlinkOptions !== null) {
+            $children = [new Hyperlink(
+                children: $children,
+                href: $hyperlinkOptions['href'] ?? null,
+                anchor: $hyperlinkOptions['anchor'] ?? null,
+            )];
+        }
+
         return new Result(
             value: new Run(
-                children: $childrenResult->value,
+                children: $children,
                 styleId: $styleResult->value['styleId'],
                 styleName: $styleResult->value['styleName'],
                 isBold: self::readBoolean($properties->first('w:b')),
@@ -597,6 +626,75 @@ final class BodyReader
         }
 
         return $result;
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private function readFldChar(Element $element): Result
+    {
+        $type = $element->attribute('w:fldCharType');
+        if ($type === 'begin') {
+            $this->complexFieldStack[] = ['type' => 'begin', 'fldChar' => $element];
+            $this->currentInstrText = [];
+        } elseif ($type === 'end') {
+            // Mammoth pops; we don't currently care what was popped (checkbox
+            // not supported -- TODO).
+            array_pop($this->complexFieldStack);
+        } elseif ($type === 'separate') {
+            // Pop the begin frame and replace it with the parsed instr text
+            // (typically a hyperlink). Subsequent runs see this on the stack
+            // and wrap their children in a Hyperlink.
+            array_pop($this->complexFieldStack);
+            $this->complexFieldStack[] = self::parseInstrText(implode('', $this->currentInstrText));
+        }
+
+        return Result::success(null);
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private function readInstrText(Element $element): Result
+    {
+        $this->currentInstrText[] = $element->text();
+
+        return Result::success(null);
+    }
+
+    /**
+     * @return array{type: string, options?: array{href?: string, anchor?: string}}
+     */
+    private static function parseInstrText(string $instrText): array
+    {
+        // mammoth's regex: HYPERLINK followed by optional "\l " switch (anchor)
+        // and either a quoted location or an unquoted token.
+        if (preg_match('/^\s*HYPERLINK\s+(\\\\l\s+)?(?:"(.*)"|([^\\\\]\S*))/', $instrText, $m) === 1) {
+            $location = ($m[2] ?? '') !== '' ? $m[2] : ($m[3] ?? '');
+            $isAnchor = ($m[1] ?? '') !== '';
+
+            return [
+                'type' => 'hyperlink',
+                'options' => $isAnchor ? ['anchor' => $location] : ['href' => $location],
+            ];
+        }
+
+        return ['type' => 'unknown'];
+    }
+
+    /**
+     * @return ?array{href?: string, anchor?: string}
+     */
+    private function currentHyperlinkOptions(): ?array
+    {
+        $current = null;
+        foreach ($this->complexFieldStack as $frame) {
+            if ($frame['type'] === 'hyperlink') {
+                $current = $frame['options'] ?? null;
+            }
+        }
+
+        return $current;
     }
 
     /**
