@@ -10,6 +10,7 @@ enum MatcherKind: string
 {
     case Paragraph = 'paragraph';
     case Run = 'run';
+    case Table = 'table';
     case CommentReference = 'commentReference';
     case Highlight = 'highlight';
     case BreakKind = 'break';

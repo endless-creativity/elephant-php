@@ -278,7 +278,7 @@ final class DocumentConverter
         }
 
         if ($node instanceof Table) {
-            return [$this->convertTable($node, $messages)];
+            return $this->convertTable($node, $messages);
         }
 
         if ($node instanceof TableRow) {
@@ -389,33 +389,42 @@ final class DocumentConverter
     /**
      * @param  list<Message>  $messages
      * @param-out  list<Message>  $messages
+     * @return list<HtmlNode>
      */
-    private function convertTable(Table $table, array &$messages): HtmlElement
+    private function convertTable(Table $table, array &$messages): array
     {
+        // Body rows from possible thead/tbody split, computed first so the
+        // style-map path can wrap them (or the default <table> can).
         $bodyIndex = self::findBodyRowIndex($table);
         if ($bodyIndex === 0) {
-            // No header rows -- emit <table><tr>...</tr></table> as before.
-            return new HtmlElement(
-                tag: new Tag(tagName: 'table'),
-                children: $this->convertNodes($table->children, $messages),
+            $bodyChildren = $this->convertNodes($table->children, $messages);
+        } else {
+            $headSlice = array_slice($table->children, 0, $bodyIndex);
+            $bodySlice = array_slice($table->children, $bodyIndex);
+            $bodyChildren = [new HtmlElement(
+                tag: new Tag(tagName: 'thead'),
+                children: $this->convertNodes($headSlice, $messages),
+            )];
+            if ($bodySlice !== []) {
+                $bodyChildren[] = new HtmlElement(
+                    tag: new Tag(tagName: 'tbody'),
+                    children: $this->convertNodes($bodySlice, $messages),
+                );
+            }
+        }
+
+        $mapping = $this->styleMap->findForTable($table);
+        if ($mapping !== null) {
+            return $mapping->to->applyTo($bodyChildren);
+        }
+
+        if ($table->styleId !== null) {
+            $messages[] = Message::warning(
+                "Unrecognised table style: '{$table->styleName}' (Style ID: {$table->styleId})",
             );
         }
 
-        $headSlice = array_slice($table->children, 0, $bodyIndex);
-        $bodySlice = array_slice($table->children, $bodyIndex);
-
-        $children = [new HtmlElement(
-            tag: new Tag(tagName: 'thead'),
-            children: $this->convertNodes($headSlice, $messages),
-        )];
-        if ($bodySlice !== []) {
-            $children[] = new HtmlElement(
-                tag: new Tag(tagName: 'tbody'),
-                children: $this->convertNodes($bodySlice, $messages),
-            );
-        }
-
-        return new HtmlElement(tag: new Tag(tagName: 'table'), children: $children);
+        return [new HtmlElement(tag: new Tag(tagName: 'table'), children: $bodyChildren)];
     }
 
     private static function findBodyRowIndex(Table $table): int

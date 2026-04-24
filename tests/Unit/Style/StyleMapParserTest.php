@@ -82,7 +82,7 @@ it('parses a matcher with no path as an empty path', function (): void {
 });
 
 it('throws on an unknown matcher kind', function (): void {
-    StyleMapParser::parse('table.Foo => table');
+    StyleMapParser::parse('section.Foo => p');
 })->throws(InvalidArgumentException::class);
 
 it('throws on an unterminated string', function (): void {

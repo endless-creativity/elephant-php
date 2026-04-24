@@ -74,6 +74,17 @@ final readonly class StyleMap
         return null;
     }
 
+    public function findForTable(\EndlessCreativity\ElephantPhp\Document\Table $table): ?StyleMapping
+    {
+        foreach ($this->mappings as $mapping) {
+            if ($mapping->from->matchesTable($table)) {
+                return $mapping;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Lookup for `highlight` / `highlight[color='X']` matchers. Returns the
      * first matcher whose color is null (matches any) or matches $color.

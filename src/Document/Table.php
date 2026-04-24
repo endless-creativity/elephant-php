@@ -11,7 +11,10 @@ final readonly class Table implements Node
     /**
      * @param  list<Node>  $children
      */
-    public function __construct(public array $children = [])
-    {
+    public function __construct(
+        public array $children = [],
+        public ?string $styleId = null,
+        public ?string $styleName = null,
+    ) {
     }
 }

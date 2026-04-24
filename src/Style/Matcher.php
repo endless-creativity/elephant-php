@@ -52,6 +52,15 @@ final readonly class Matcher
         return $this->matchesStyle($run->styleId, $run->styleName);
     }
 
+    public function matchesTable(\EndlessCreativity\ElephantPhp\Document\Table $table): bool
+    {
+        if ($this->kind !== MatcherKind::Table) {
+            return false;
+        }
+
+        return $this->matchesStyle($table->styleId, $table->styleName);
+    }
+
     public function matchesCommentReference(): bool
     {
         return $this->kind === MatcherKind::CommentReference;

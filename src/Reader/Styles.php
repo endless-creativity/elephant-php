@@ -11,10 +11,12 @@ final readonly class Styles
     /**
      * @param  array<string, Style>  $paragraphStyles
      * @param  array<string, Style>  $characterStyles
+     * @param  array<string, Style>  $tableStyles
      */
     public function __construct(
         private array $paragraphStyles = [],
         private array $characterStyles = [],
+        private array $tableStyles = [],
     ) {
     }
 
@@ -31,5 +33,10 @@ final readonly class Styles
     public function findCharacterStyleById(string $styleId): ?Style
     {
         return $this->characterStyles[$styleId] ?? null;
+    }
+
+    public function findTableStyleById(string $styleId): ?Style
+    {
+        return $this->tableStyles[$styleId] ?? null;
     }
 }

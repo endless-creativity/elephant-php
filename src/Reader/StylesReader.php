@@ -19,6 +19,7 @@ final class StylesReader
     {
         $paragraphStyles = [];
         $characterStyles = [];
+        $tableStyles = [];
 
         foreach ($root->getElementsByTagName('w:style') as $styleElement) {
             $type = $styleElement->attribute('w:type');
@@ -26,7 +27,7 @@ final class StylesReader
             if ($type === null || $styleId === null) {
                 continue;
             }
-            if ($type !== 'paragraph' && $type !== 'character') {
+            if ($type !== 'paragraph' && $type !== 'character' && $type !== 'table') {
                 continue;
             }
 
@@ -39,6 +40,9 @@ final class StylesReader
             if ($type === 'character' && isset($characterStyles[$styleId])) {
                 continue;
             }
+            if ($type === 'table' && isset($tableStyles[$styleId])) {
+                continue;
+            }
 
             $style = new Style(
                 styleId: $styleId,
@@ -47,11 +51,17 @@ final class StylesReader
 
             if ($type === 'paragraph') {
                 $paragraphStyles[$styleId] = $style;
-            } else {
+            } elseif ($type === 'character') {
                 $characterStyles[$styleId] = $style;
+            } else {
+                $tableStyles[$styleId] = $style;
             }
         }
 
-        return new Styles(paragraphStyles: $paragraphStyles, characterStyles: $characterStyles);
+        return new Styles(
+            paragraphStyles: $paragraphStyles,
+            characterStyles: $characterStyles,
+            tableStyles: $tableStyles,
+        );
     }
 }

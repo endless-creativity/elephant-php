@@ -305,10 +305,23 @@ final class BodyReader
      */
     private function readTable(Element $element): Result
     {
-        return $this->readXmlElements($element->children)
-            ->map(fn (array $children): Table => new Table(
-                children: self::resolveRowSpans($children),
-            ));
+        $properties = $element->firstOrEmpty('w:tblPr');
+        $childrenResult = $this->readXmlElements($element->children);
+        $styleResult = $this->readStyle(
+            properties: $properties,
+            styleTagName: 'w:tblStyle',
+            styleType: 'Table',
+            finder: fn (string $id): ?Style => $this->styles->findTableStyleById($id),
+        );
+
+        return new Result(
+            value: new Table(
+                children: self::resolveRowSpans($childrenResult->value),
+                styleId: $styleResult->value['styleId'],
+                styleName: $styleResult->value['styleName'],
+            ),
+            messages: array_merge($childrenResult->messages, $styleResult->messages),
+        );
     }
 
     /**

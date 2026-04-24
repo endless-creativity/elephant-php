@@ -145,7 +145,8 @@ final class StyleMapParser
         $kind = match ($kindToken['value']) {
             'p' => MatcherKind::Paragraph,
             'r' => MatcherKind::Run,
-            default => throw $this->error("Expected 'p' or 'r' as matcher kind, got '{$kindToken['value']}'", $kindToken['position']),
+            'table' => MatcherKind::Table,
+            default => throw $this->error("Expected 'p', 'r' or 'table' as matcher kind, got '{$kindToken['value']}'", $kindToken['position']),
         };
 
         $styleId = null;
