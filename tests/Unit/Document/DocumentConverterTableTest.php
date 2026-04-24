@@ -39,7 +39,7 @@ it('renders a 2x2 table as <table><tr><td><p>...</p></td>...</tr></table>', func
     );
 });
 
-it('renders header rows as <th>', function (): void {
+it('wraps header rows in <thead> and body rows in <tbody>', function (): void {
     $table = new Table(children: [
         new TableRow(children: [cellWith('h1'), cellWith('h2')], isHeader: true),
         new TableRow(children: [cellWith('a'), cellWith('b')]),
@@ -47,8 +47,36 @@ it('renders header rows as <th>', function (): void {
 
     expect(htmlOfTable($table))->toBe(
         '<table>'
-        .'<tr><th><p>h1</p></th><th><p>h2</p></th></tr>'
+        .'<thead><tr><th><p>h1</p></th><th><p>h2</p></th></tr></thead>'
+        .'<tbody><tr><td><p>a</p></td><td><p>b</p></td></tr></tbody>'
+        .'</table>',
+    );
+});
+
+it('emits only <thead> when there are no body rows after the headers', function (): void {
+    $table = new Table(children: [
+        new TableRow(children: [cellWith('h1'), cellWith('h2')], isHeader: true),
+    ]);
+
+    expect(htmlOfTable($table))->toBe(
+        '<table>'
+        .'<thead><tr><th><p>h1</p></th><th><p>h2</p></th></tr></thead>'
+        .'</table>',
+    );
+});
+
+it('skips the thead/tbody split when the first row is not a header', function (): void {
+    $table = new Table(children: [
+        new TableRow(children: [cellWith('a'), cellWith('b')]),
+        new TableRow(children: [cellWith('h1'), cellWith('h2')], isHeader: true),
+    ]);
+
+    // Mammoth's bodyIndex == 0 fast path: no thead/tbody, but the header
+    // row's cells still render as <th>.
+    expect(htmlOfTable($table))->toBe(
+        '<table>'
         .'<tr><td><p>a</p></td><td><p>b</p></td></tr>'
+        .'<tr><th><p>h1</p></th><th><p>h2</p></th></tr>'
         .'</table>',
     );
 });

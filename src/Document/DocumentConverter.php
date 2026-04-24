@@ -278,10 +278,7 @@ final class DocumentConverter
         }
 
         if ($node instanceof Table) {
-            return [new HtmlElement(
-                tag: new Tag(tagName: 'table'),
-                children: $this->convertNodes($node->children, $messages),
-            )];
+            return [$this->convertTable($node, $messages)];
         }
 
         if ($node instanceof TableRow) {
@@ -383,6 +380,49 @@ final class DocumentConverter
         }
 
         return [new HtmlElement(tag: new Tag(tagName: 'img', attributes: $attributes))];
+    }
+
+    /**
+     * @param  list<Message>  $messages
+     * @param-out  list<Message>  $messages
+     */
+    private function convertTable(Table $table, array &$messages): HtmlElement
+    {
+        $bodyIndex = self::findBodyRowIndex($table);
+        if ($bodyIndex === 0) {
+            // No header rows -- emit <table><tr>...</tr></table> as before.
+            return new HtmlElement(
+                tag: new Tag(tagName: 'table'),
+                children: $this->convertNodes($table->children, $messages),
+            );
+        }
+
+        $headSlice = array_slice($table->children, 0, $bodyIndex);
+        $bodySlice = array_slice($table->children, $bodyIndex);
+
+        $children = [new HtmlElement(
+            tag: new Tag(tagName: 'thead'),
+            children: $this->convertNodes($headSlice, $messages),
+        )];
+        if ($bodySlice !== []) {
+            $children[] = new HtmlElement(
+                tag: new Tag(tagName: 'tbody'),
+                children: $this->convertNodes($bodySlice, $messages),
+            );
+        }
+
+        return new HtmlElement(tag: new Tag(tagName: 'table'), children: $children);
+    }
+
+    private static function findBodyRowIndex(Table $table): int
+    {
+        foreach ($table->children as $i => $child) {
+            if (! $child instanceof TableRow || ! $child->isHeader) {
+                return $i;
+            }
+        }
+
+        return count($table->children);
     }
 
     /**
