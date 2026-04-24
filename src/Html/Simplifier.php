@@ -25,6 +25,14 @@ final class Simplifier
     {
         $result = [];
         foreach ($nodes as $node) {
+            if ($node instanceof ForceWrite) {
+                // ForceWrite is "never empty" -- keeping it in the parent's
+                // children prevents removeEmpty from dropping the parent.
+                $result[] = $node;
+
+                continue;
+            }
+
             if ($node instanceof Text) {
                 if ($node->value !== '') {
                     $result[] = $node;

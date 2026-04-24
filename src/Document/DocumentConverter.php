@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp\Document;
 
 use EndlessCreativity\ElephantPhp\Html\Element as HtmlElement;
+use EndlessCreativity\ElephantPhp\Html\ForceWrite;
 use EndlessCreativity\ElephantPhp\Html\HtmlWriter;
 use EndlessCreativity\ElephantPhp\Html\MarkdownWriter;
 use EndlessCreativity\ElephantPhp\Html\Node as HtmlNode;
@@ -309,11 +310,40 @@ final class DocumentConverter
             return $this->convertCommentReference($node);
         }
 
+        if ($node instanceof Tab) {
+            return [new HtmlText(value: "\t")];
+        }
+
+        if ($node instanceof BreakElement) {
+            return self::convertBreak($node);
+        }
+
+        if ($node instanceof BookmarkStart) {
+            return [new HtmlElement(
+                tag: new Tag(tagName: 'a', attributes: ['id' => $node->name], fresh: true),
+                children: [new ForceWrite()],
+            )];
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }
 
         return [];
+    }
+
+    /**
+     * @return list<HtmlNode>
+     */
+    private static function convertBreak(BreakElement $break): array
+    {
+        // Mammoth: line break renders <br>; page/column break renders nothing
+        // by default (mammoth's htmlPathForBreak falls back to htmlPaths.empty).
+        // The DSL `br[type=page|column] => ...` matcher will let users opt in
+        // (added later).
+        return $break->breakType === BreakType::Line
+            ? [new HtmlElement(tag: new Tag(tagName: 'br'))]
+            : [];
     }
 
     private function convertNoteReference(NoteReference $reference): HtmlElement

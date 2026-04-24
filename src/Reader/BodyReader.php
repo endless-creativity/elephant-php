@@ -7,6 +7,9 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp\Reader;
 
 use Closure;
+use EndlessCreativity\ElephantPhp\Document\BookmarkStart;
+use EndlessCreativity\ElephantPhp\Document\BreakElement;
+use EndlessCreativity\ElephantPhp\Document\BreakType;
 use EndlessCreativity\ElephantPhp\Document\CommentReference;
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Image;
@@ -16,6 +19,7 @@ use EndlessCreativity\ElephantPhp\Document\NoteType;
 use EndlessCreativity\ElephantPhp\Document\NumberingLevel;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
+use EndlessCreativity\ElephantPhp\Document\Tab;
 use EndlessCreativity\ElephantPhp\Document\Table;
 use EndlessCreativity\ElephantPhp\Document\TableCell;
 use EndlessCreativity\ElephantPhp\Document\TableRow;
@@ -85,6 +89,11 @@ final class BodyReader
             'w:p' => $this->readParagraph($element),
             'w:r' => $this->readRun($element),
             'w:t' => Result::success(new Text(value: $element->text())),
+            'w:tab' => Result::success(new Tab()),
+            'w:noBreakHyphen' => Result::success(new Text(value: "\u{2011}")),
+            'w:softHyphen' => Result::success(new Text(value: "\u{00AD}")),
+            'w:br' => Result::success(self::readBreak($element)),
+            'w:bookmarkStart' => Result::success(self::readBookmarkStart($element)),
             'w:hyperlink' => $this->readHyperlink($element),
             'w:tbl' => $this->readTable($element),
             'w:tr' => $this->readTableRow($element),
@@ -503,6 +512,36 @@ final class BodyReader
         }
 
         return $result;
+    }
+
+    private static function readBreak(Element $element): BreakElement
+    {
+        // Mammoth maps w:type=textWrapping (and a missing type) to a line
+        // break, w:type=page to a page break, w:type=column to a column
+        // break. Anything else falls back to a line break, matching mammoth.
+        $type = $element->attribute('w:type');
+
+        return match ($type) {
+            'page' => new BreakElement(breakType: BreakType::Page),
+            'column' => new BreakElement(breakType: BreakType::Column),
+            default => new BreakElement(breakType: BreakType::Line),
+        };
+    }
+
+    private static function readBookmarkStart(Element $element): ?BookmarkStart
+    {
+        $name = $element->attribute('w:name');
+        if ($name === null) {
+            return null;
+        }
+        // Word inserts a synthetic _GoBack bookmark on every save -- mammoth
+        // strips it because rendering it as <a id="_GoBack"></a> in the
+        // output is just noise.
+        if ($name === '_GoBack') {
+            return null;
+        }
+
+        return new BookmarkStart(name: $name);
     }
 
     /**
