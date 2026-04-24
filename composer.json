@@ -24,6 +24,7 @@
         "phpstan/phpstan": "^2.0",
         "laravel/pint": "^1.18"
     },
+    "bin": ["bin/elephant-php"],
     "autoload": {
         "psr-4": {
             "EndlessCreativity\\ElephantPhp\\": "src/"
