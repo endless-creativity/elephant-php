@@ -12,4 +12,5 @@ enum MatcherKind: string
     case Run = 'run';
     case CommentReference = 'commentReference';
     case Highlight = 'highlight';
+    case BreakKind = 'break';
 }

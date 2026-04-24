@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Style;
 
+use EndlessCreativity\ElephantPhp\Document\BreakType;
 use EndlessCreativity\ElephantPhp\Document\Paragraph;
 use EndlessCreativity\ElephantPhp\Document\Run;
 
@@ -25,6 +26,8 @@ final readonly class Matcher
         public ?RunProperty $runProperty = null,
         /** Color requested by a `highlight[color='X']` matcher; null means "any color". */
         public ?string $highlightColor = null,
+        /** Break type required by `br[type='line|page|column']` matcher. */
+        public ?BreakType $breakType = null,
     ) {
     }
 
@@ -61,6 +64,11 @@ final readonly class Matcher
         }
 
         return $this->highlightColor === null || $this->highlightColor === $color;
+    }
+
+    public function matchesBreak(BreakType $breakType): bool
+    {
+        return $this->kind === MatcherKind::BreakKind && $this->breakType === $breakType;
     }
 
     private function runHasProperty(Run $run, RunProperty $property): bool

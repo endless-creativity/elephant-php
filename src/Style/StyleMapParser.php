@@ -104,6 +104,28 @@ final class StyleMapParser
             return new Matcher(kind: MatcherKind::CommentReference);
         }
 
+        // br[type='line|page|column'] -- type is required (mammoth too).
+        if ($kindToken['value'] === 'br') {
+            $this->expectType('open-square-bracket');
+            $name = $this->expectType('identifier');
+            if ($name['value'] !== 'type') {
+                throw $this->error("Expected 'type' inside br[...], got '{$name['value']}'", $name['position']);
+            }
+            $this->expectType('equals');
+            $value = $this->expectType('string');
+            $this->expectType('close-square-bracket');
+
+            $breakType = \EndlessCreativity\ElephantPhp\Document\BreakType::tryFrom($value['value']);
+            if ($breakType === null) {
+                throw $this->error(
+                    "Unknown br type '{$value['value']}' (expected line, page, or column)",
+                    $value['position'],
+                );
+            }
+
+            return new Matcher(kind: MatcherKind::BreakKind, breakType: $breakType);
+        }
+
         // highlight or highlight[color='X']
         if ($kindToken['value'] === 'highlight') {
             $color = null;

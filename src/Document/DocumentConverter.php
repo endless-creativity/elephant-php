@@ -312,7 +312,7 @@ final class DocumentConverter
         }
 
         if ($node instanceof BreakElement) {
-            return self::convertBreak($node);
+            return $this->convertBreak($node);
         }
 
         if ($node instanceof BookmarkStart) {
@@ -332,12 +332,16 @@ final class DocumentConverter
     /**
      * @return list<HtmlNode>
      */
-    private static function convertBreak(BreakElement $break): array
+    private function convertBreak(BreakElement $break): array
     {
-        // Mammoth: line break renders <br>; page/column break renders nothing
-        // by default (mammoth's htmlPathForBreak falls back to htmlPaths.empty).
-        // The DSL `br[type=page|column] => ...` matcher will let users opt in
-        // (added later).
+        // Mammoth: a user-supplied `br[type='X'] => path` mapping wins;
+        // otherwise line breaks default to <br> and page/column breaks emit
+        // nothing.
+        $mapping = $this->styleMap->findForBreak($break->breakType);
+        if ($mapping !== null) {
+            return $mapping->to->applyTo([]);
+        }
+
         return $break->breakType === BreakType::Line
             ? [new HtmlElement(tag: new Tag(tagName: 'br'))]
             : [];
