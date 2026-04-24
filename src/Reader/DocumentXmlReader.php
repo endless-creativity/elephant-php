@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Reader;
 
+use EndlessCreativity\ElephantPhp\Document\Comments;
 use EndlessCreativity\ElephantPhp\Document\Document;
 use EndlessCreativity\ElephantPhp\Document\Notes;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
@@ -17,6 +18,7 @@ final readonly class DocumentXmlReader
     public function __construct(
         private BodyReader $bodyReader,
         private Notes $notes = new Notes(),
+        private Comments $comments = new Comments(),
     ) {
     }
 
@@ -34,6 +36,7 @@ final readonly class DocumentXmlReader
             ->map(fn (array $children): Document => new Document(
                 children: $children,
                 notes: $this->notes,
+                comments: $this->comments,
             ));
     }
 }

@@ -14,6 +14,7 @@ final readonly class Document implements Node
     public function __construct(
         public array $children = [],
         public Notes $notes = new Notes(),
+        public Comments $comments = new Comments(),
     ) {
     }
 }

@@ -6,12 +6,14 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp;
 
+use EndlessCreativity\ElephantPhp\Document\Comments;
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Document\Notes;
 use EndlessCreativity\ElephantPhp\Document\NoteType;
 use EndlessCreativity\ElephantPhp\Image\DataUriImageHandler;
 use EndlessCreativity\ElephantPhp\Image\ImageHandler;
 use EndlessCreativity\ElephantPhp\Reader\BodyReader;
+use EndlessCreativity\ElephantPhp\Reader\CommentsReader;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypes;
 use EndlessCreativity\ElephantPhp\Reader\ContentTypesReader;
 use EndlessCreativity\ElephantPhp\Reader\DocumentXmlReader;
@@ -167,10 +169,26 @@ final class Converter
         }
         $notes = new Notes($noteList);
 
+        $commentMessages = [];
+        if ($zip->exists('word/comments.xml')) {
+            $commentsResult = (new CommentsReader($bodyReader))->readFromXml(
+                XmlReader::readString(
+                    self::stripUtf8Bom($zip->read('word/comments.xml')),
+                    self::OFFICE_XML_NAMESPACE_MAP,
+                ),
+            );
+            $comments = new Comments($commentsResult->value);
+            foreach ($commentsResult->messages as $message) {
+                $commentMessages[] = $message;
+            }
+        } else {
+            $comments = Comments::default();
+        }
+
         $documentXml = self::stripUtf8Bom($zip->read('word/document.xml'));
         $documentElement = XmlReader::readString($documentXml, self::OFFICE_XML_NAMESPACE_MAP);
 
-        $documentResult = (new DocumentXmlReader($bodyReader, $notes))
+        $documentResult = (new DocumentXmlReader($bodyReader, $notes, $comments))
             ->convertXmlToDocument($documentElement);
 
         $converter = new DocumentConverter(
@@ -181,7 +199,7 @@ final class Converter
 
         return new Result(
             value: $htmlResult->value,
-            messages: array_merge($noteMessages, $documentResult->messages, $htmlResult->messages),
+            messages: array_merge($noteMessages, $commentMessages, $documentResult->messages, $htmlResult->messages),
         );
     }
 

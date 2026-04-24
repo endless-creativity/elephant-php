@@ -205,6 +205,13 @@ final class DocumentConverter
             return [$this->convertNoteReference($node)];
         }
 
+        if ($node instanceof CommentReference) {
+            // Mammoth's default for comment-reference is htmlPaths.ignore
+            // (the inline marker is dropped). A future DSL `comment-reference`
+            // matcher will let users opt in.
+            return [];
+        }
+
         if ($node instanceof Text) {
             return [new HtmlText(value: $node->value)];
         }

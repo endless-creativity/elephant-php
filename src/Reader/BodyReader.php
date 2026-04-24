@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace EndlessCreativity\ElephantPhp\Reader;
 
 use Closure;
+use EndlessCreativity\ElephantPhp\Document\CommentReference;
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Image;
 use EndlessCreativity\ElephantPhp\Document\Node as DocumentNode;
@@ -92,6 +93,7 @@ final class BodyReader
             'wp:inline', 'wp:anchor' => $this->readDrawingElement($element),
             'w:footnoteReference' => self::readNoteReference($element, NoteType::Footnote),
             'w:endnoteReference' => self::readNoteReference($element, NoteType::Endnote),
+            'w:commentReference' => self::readCommentReference($element),
             default => isset(self::IGNORED_ELEMENTS[$element->name])
                 ? Result::success(null)
                 : new Result(
@@ -514,6 +516,19 @@ final class BodyReader
         }
 
         return Result::success(new NoteReference(noteType: $noteType, noteId: $noteId));
+    }
+
+    /**
+     * @return Result<?DocumentNode>
+     */
+    private static function readCommentReference(Element $element): Result
+    {
+        $commentId = $element->attribute('w:id');
+        if ($commentId === null) {
+            return Result::success(null);
+        }
+
+        return Result::success(new CommentReference(commentId: $commentId));
     }
 
     private static function replaceFragment(string $uri, string $fragment): string
