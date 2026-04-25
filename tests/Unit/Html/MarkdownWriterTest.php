@@ -29,6 +29,51 @@ it('renders a paragraph as text followed by two newlines', function (): void {
         ->toBe("Hello\\.\n\n");
 });
 
+it('hoists leading whitespace out of a <strong> wrapper for valid markdown', function (): void {
+    $node = el('p', children: [
+        el('strong', children: [txt('    Bau')]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("    __Bau__\n\n");
+});
+
+it('hoists trailing whitespace out of a <strong> wrapper', function (): void {
+    $node = el('p', children: [
+        el('strong', children: [txt('Bau    ')]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("__Bau__    \n\n");
+});
+
+it('hoists whitespace from both ends of an <em> wrapper', function (): void {
+    $node = el('p', children: [
+        el('em', children: [txt('  italic  ')]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("  *italic*  \n\n");
+});
+
+it('drops a wrapper that contained only whitespace, keeping the spaces', function (): void {
+    $node = el('p', children: [
+        el('strong', children: [txt('   ')]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("   \n\n");
+});
+
+it('hoists whitespace through nested emphasis recursively', function (): void {
+    // <strong>  <em>  hi  </em>  </strong>
+    $node = el('p', children: [
+        el('strong', children: [
+            txt('  '),
+            el('em', children: [txt('  hi  ')]),
+            txt('  '),
+        ]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("    __*hi*__    \n\n");
+});
+
 it('renders <strong> as __ wrappers', function (): void {
     expect(MarkdownWriter::write([el('p', children: [
         el('strong', children: [txt('bold')]),

@@ -17,14 +17,114 @@ use Closure;
 final class MarkdownWriter
 {
     /**
+     * Tags whose markdown delimiters require a non-whitespace character
+     * adjacent to the opening / closing marker to actually format the
+     * content (CommonMark § 6.2). For these tags we hoist any leading or
+     * trailing whitespace text out of the wrapper before writing, so
+     * `__   bold   __` (broken markdown) becomes `   __bold__   ` (working).
+     *
+     * @var array<string, true>
+     */
+    private const EMPHASIS_TAGS = [
+        'strong' => true,
+        'em' => true,
+        's' => true,
+        'sub' => true,
+        'sup' => true,
+    ];
+
+    /**
      * @param  list<Node>  $nodes
      */
     public static function write(array $nodes): string
     {
         $writer = new self();
-        $writer->writeNodes($nodes);
+        $writer->writeNodes(self::hoistEmphasisWhitespace($nodes));
 
         return $writer->output;
+    }
+
+    /**
+     * @param  list<Node>  $nodes
+     * @return list<Node>
+     */
+    private static function hoistEmphasisWhitespace(array $nodes): array
+    {
+        $result = [];
+        foreach ($nodes as $node) {
+            foreach (self::hoistOne($node) as $hoisted) {
+                $result[] = $hoisted;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<Node>
+     */
+    private static function hoistOne(Node $node): array
+    {
+        if (! $node instanceof Element) {
+            return [$node];
+        }
+
+        // Recurse first so nested emphasis is normalised bottom-up.
+        $children = self::hoistEmphasisWhitespace($node->children);
+
+        if (! isset(self::EMPHASIS_TAGS[$node->tag->tagName])) {
+            return [$node->withChildren($children)];
+        }
+
+        $leading = '';
+        while ($children !== [] && $children[0] instanceof Text) {
+            $value = $children[0]->value;
+            if (preg_match('/^(\s+)(.*)$/s', $value, $m) !== 1) {
+                break;
+            }
+            $leading .= $m[1];
+            if ($m[2] === '') {
+                array_shift($children);
+
+                continue;
+            }
+            $children[0] = new Text(value: $m[2]);
+            break;
+        }
+
+        $trailing = '';
+        while ($children !== []) {
+            $lastIndex = count($children) - 1;
+            $last = $children[$lastIndex];
+            if (! $last instanceof Text) {
+                break;
+            }
+            $value = $last->value;
+            if (preg_match('/^(.*?)(\s+)$/s', $value, $m) !== 1) {
+                break;
+            }
+            $trailing = $m[2].$trailing;
+            if ($m[1] === '') {
+                array_pop($children);
+
+                continue;
+            }
+            $children[$lastIndex] = new Text(value: $m[1]);
+            break;
+        }
+
+        $result = [];
+        if ($leading !== '') {
+            $result[] = new Text(value: $leading);
+        }
+        if ($children !== []) {
+            $result[] = $node->withChildren($children);
+        }
+        if ($trailing !== '') {
+            $result[] = new Text(value: $trailing);
+        }
+
+        return $result;
     }
 
     private string $output = '';
