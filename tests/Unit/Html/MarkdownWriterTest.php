@@ -86,6 +86,34 @@ it('strips a run of leading spaces inside a paragraph, not just at doc start', f
     expect(MarkdownWriter::write([$first, $indented]))->toBe("one\n\ntwo\n\n");
 });
 
+it('strips a leading tab so paragraphs indented with <w:tab> are not code blocks', function (): void {
+    // mammoth/our reader emits <w:tab/> as "\t". Twelve tabs at line start
+    // would become an indented code block under CommonMark; strip them.
+    $node = el('p', children: [txt("\t\t\t\t\t\t\t\t\t\t\t\tcontro")]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("contro\n\n");
+});
+
+it('strips mixed leading tabs and spaces from a paragraph', function (): void {
+    $node = el('p', children: [txt("\t \t  contro")]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("contro\n\n");
+});
+
+it('keeps the leading tab on a nested list item so the parser sees the nesting', function (): void {
+    $list = el('ul', children: [
+        el('li', children: [
+            txt('A'),
+            el('ul', children: [el('li', children: [txt('a1')])]),
+        ]),
+        el('li', children: [txt('B')]),
+    ]);
+
+    // Same expectation as the existing nested-list test: the "\t- a1" line
+    // must keep its leading tab so it's recognised as a nested list item.
+    expect(MarkdownWriter::write([$list]))->toBe("- A\n\t- a1\n- B\n\n");
+});
+
 it('renders <strong> as __ wrappers', function (): void {
     expect(MarkdownWriter::write([el('p', children: [
         el('strong', children: [txt('bold')]),

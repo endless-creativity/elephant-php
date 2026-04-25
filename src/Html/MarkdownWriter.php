@@ -57,12 +57,20 @@ final class MarkdownWriter
      */
     private static function stripLineLeadingSpaces(string $markdown): string
     {
-        // <br> emits "  \n" but always after non-whitespace content within a
-        // paragraph, so the two spaces never sit at line start in normal use
-        // -- this regex won't damage hard breaks. A blank "  \n" at line
-        // start has no meaning in CommonMark anyway (a hard break needs a
-        // preceding non-blank line).
-        return preg_replace('/(^|\n) +/', '$1', $markdown) ?? $markdown;
+        // Strip runs of leading spaces *or* tabs at the start of every line.
+        // A tab at line start is treated as four spaces by CommonMark's
+        // indented-code rule, so a paragraph that started with <w:tab/> in
+        // Word would otherwise become a code block.
+        //
+        // The negative lookahead `(?!- |\d+\. )` protects our own nested
+        // list items: convertList emits "\t- foo" / "\t1. foo" for nested
+        // entries, and those tabs must remain so the markdown parser keeps
+        // recognising them as nested list items.
+        //
+        // <br>'s "  \n" marker is unaffected because <br> always appears
+        // after non-whitespace content inside a paragraph in normal use,
+        // so the two spaces never sit at line start.
+        return preg_replace('/(^|\n)[ \t]+(?!- |\d+\. )/', '$1', $markdown) ?? $markdown;
     }
 
     /**
