@@ -41,7 +41,28 @@ final class MarkdownWriter
         $writer = new self();
         $writer->writeNodes(self::hoistEmphasisWhitespace($nodes));
 
-        return $writer->output;
+        return self::stripLineLeadingSpaces($writer->output);
+    }
+
+    /**
+     * Strips runs of leading spaces at the start of every line. CommonMark
+     * § 4.4 turns any line that begins with four or more spaces into an
+     * indented code block, which destroys formatting on indented paragraphs
+     * (and on emphasis wrappers whose leading whitespace we hoist out).
+     * Markdown has no paragraph-indent primitive, so the spaces are dropped
+     * entirely rather than preserved as `&nbsp;` -- the user asked for pure
+     * text. Tabs at line start are left alone: we use them ourselves for
+     * nested list items, where the parser recognises the list before the
+     * indented-code rule kicks in.
+     */
+    private static function stripLineLeadingSpaces(string $markdown): string
+    {
+        // <br> emits "  \n" but always after non-whitespace content within a
+        // paragraph, so the two spaces never sit at line start in normal use
+        // -- this regex won't damage hard breaks. A blank "  \n" at line
+        // start has no meaning in CommonMark anyway (a hard break needs a
+        // preceding non-blank line).
+        return preg_replace('/(^|\n) +/', '$1', $markdown) ?? $markdown;
     }
 
     /**

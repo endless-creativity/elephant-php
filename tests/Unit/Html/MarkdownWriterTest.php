@@ -29,15 +29,20 @@ it('renders a paragraph as text followed by two newlines', function (): void {
         ->toBe("Hello\\.\n\n");
 });
 
-it('hoists leading whitespace out of a <strong> wrapper for valid markdown', function (): void {
+it('hoists leading whitespace out of <strong> and drops it at line start', function (): void {
+    // The hoist moves the spaces outside the wrapper so the markdown is
+    // valid; the line-start strip then keeps the output as pure text without
+    // triggering CommonMark's indented-code-block rule (4+ leading spaces).
     $node = el('p', children: [
         el('strong', children: [txt('    Bau')]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("    __Bau__\n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("__Bau__\n\n");
 });
 
-it('hoists trailing whitespace out of a <strong> wrapper', function (): void {
+it('hoists trailing whitespace out of <strong> and keeps it after the wrapper', function (): void {
+    // Trailing whitespace lands mid-line, where it does not trigger any
+    // CommonMark rule, so it is preserved as-is.
     $node = el('p', children: [
         el('strong', children: [txt('Bau    ')]),
     ]);
@@ -45,23 +50,23 @@ it('hoists trailing whitespace out of a <strong> wrapper', function (): void {
     expect(MarkdownWriter::write([$node]))->toBe("__Bau__    \n\n");
 });
 
-it('hoists whitespace from both ends of an <em> wrapper', function (): void {
+it('strips line-leading whitespace from an <em> wrapper while keeping trailing', function (): void {
     $node = el('p', children: [
         el('em', children: [txt('  italic  ')]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("  *italic*  \n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("*italic*  \n\n");
 });
 
-it('drops a wrapper that contained only whitespace, keeping the spaces', function (): void {
+it('drops a wrapper that contained only whitespace, leaving an empty paragraph', function (): void {
     $node = el('p', children: [
         el('strong', children: [txt('   ')]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("   \n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("\n\n");
 });
 
-it('hoists whitespace through nested emphasis recursively', function (): void {
+it('hoists whitespace through nested emphasis recursively then strips at line start', function (): void {
     // <strong>  <em>  hi  </em>  </strong>
     $node = el('p', children: [
         el('strong', children: [
@@ -71,7 +76,14 @@ it('hoists whitespace through nested emphasis recursively', function (): void {
         ]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("    __*hi*__    \n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("__*hi*__    \n\n");
+});
+
+it('strips a run of leading spaces inside a paragraph, not just at doc start', function (): void {
+    $first = el('p', children: [txt('one')]);
+    $indented = el('p', children: [txt('    two')]);
+
+    expect(MarkdownWriter::write([$first, $indented]))->toBe("one\n\ntwo\n\n");
 });
 
 it('renders <strong> as __ wrappers', function (): void {
@@ -114,8 +126,12 @@ it('renders <img> with no src and no alt as the empty string', function (): void
     expect(MarkdownWriter::write([el('img')]))->toBe('');
 });
 
-it('renders <br> as two-space hard line break', function (): void {
-    expect(MarkdownWriter::write([el('br')]))->toBe("  \n");
+it('renders <br> as a two-space hard line break inside a paragraph', function (): void {
+    // <br> always appears inside flow content; the two-space marker only
+    // matters when preceded by text, so we test the realistic shape.
+    $node = el('p', children: [txt('a'), el('br'), txt('b')]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("a  \nb\n\n");
 });
 
 it('escapes markdown-special characters in text', function (): void {
