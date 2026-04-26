@@ -186,12 +186,31 @@ it('renders <br> as a two-space hard line break inside a paragraph', function ()
 });
 
 it('escapes only chars that would actually be parsed as markdown in this position', function (): void {
-    // Mid-text: `[` `]` are always escaped (could form link refs); `*` `_`
-    // `(` `)` `#` are not escaped because CommonMark would not parse them
-    // as syntax in this position (intraword underscore rule, asterisks
+    // Mid-text: `[d](e)` is the inline-link pattern, so its brackets are
+    // escaped; everything else is left literal because CommonMark would
+    // not parse it as syntax here (intraword underscore rule, asterisks
     // not flanking, parens only matter after `]`, `#` only at line start).
     expect(MarkdownWriter::write([txt('a*b_c[d](e)#')]))
         ->toBe('a*b_c\\[d\\](e)#');
+});
+
+it('leaves citation-style brackets as literal text', function (): void {
+    // `[1]`, `[Nota]`, `[sic]` would only become links if a matching
+    // `[ref]: url` definition existed somewhere -- and we never emit
+    // those. CommonMark renders them as literal text; no escape needed.
+    $node = el('p', children: [txt('vedi [1] e [Nota] e anche [sic]')]);
+
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("vedi [1] e [Nota] e anche [sic]\n\n");
+});
+
+it('escapes brackets only when they form the inline-link pattern', function (): void {
+    // Mixed: `[1]` is a citation (literal), `[click](url)` is a real
+    // link pattern that must be escaped to render as text.
+    $node = el('p', children: [txt('see [1] and [click](url)')]);
+
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("see [1] and \\[click\\](url)\n\n");
 });
 
 it('leaves long underscore runs alone (the typical Word fill-in field)', function (): void {

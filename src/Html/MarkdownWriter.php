@@ -333,13 +333,18 @@ final class MarkdownWriter
      * escape only the characters that would actually be parsed as syntax
      * in their position:
      *
-     * - `` \ ``, `` ` ``, `[`, `]`: always (any unescaped occurrence
-     *   could open a code span or link reference)
+     * - `` \ ``, `` ` ``: always (rare in docx text, and an unescaped
+     *   backtick can open a code span across chunks).
+     * - `[`, `]`: only when forming the inline link pattern `[...](` --
+     *   citation-style brackets `[1]`, `[Nota]`, `[sic]` are left as
+     *   text because we never emit link reference definitions, so
+     *   CommonMark renders them literally.
      * - `#`, `+`: only at line start (heading / list marker)
      * - `-`: only at line start when followed by space (list marker)
      * - `.`: only after a digit run that begins at line start (ordered
      *   list marker pattern `\d+. `)
-     * - `!`: only when followed by `[` (image syntax `![alt](src)`)
+     * - `!`: only when followed by `[` *and* that `[` is itself a link
+     *   opener (image syntax `![alt](src)`).
      * - `*`, `_`, `(`, `)`, `{`, `}`, `<`, `>`: never. CommonMark's
      *   flanking-delimiter and intraword rules mean docx-derived runs
      *   like `_______` between space and punctuation don't open
@@ -360,6 +365,20 @@ final class MarkdownWriter
         // `\d+. ` ordered-list-marker detection.
         $lineSoFar = $atLineStart ? '' : null;
 
+        // Pre-pass: positions of `[` and `]` that participate in an
+        // inline-link pattern `[...](`. Outside of these positions,
+        // brackets are left as literal text. The pattern disallows
+        // nested brackets, matching the CommonMark inline-link rule.
+        $linkBrackets = [];
+        if (preg_match_all('/\[[^\[\]]*\]\(/', $text, $matches, PREG_OFFSET_CAPTURE) > 0) {
+            foreach ($matches[0] as $match) {
+                $openPos = $match[1];
+                $closePos = $openPos + strlen($match[0]) - 2;
+                $linkBrackets[$openPos] = true;
+                $linkBrackets[$closePos] = true;
+            }
+        }
+
         $result = '';
         $len = strlen($text);
         for ($i = 0; $i < $len; $i++) {
@@ -367,14 +386,15 @@ final class MarkdownWriter
             $next = $i + 1 < $len ? $text[$i + 1] : '';
 
             $escape = match ($char) {
-                '\\', '`', '[', ']' => true,
+                '\\', '`' => true,
+                '[', ']' => isset($linkBrackets[$i]),
                 '#', '+' => $atLineStart,
                 '-' => $atLineStart && $next === ' ',
                 '.' => $lineSoFar !== null
                     && $lineSoFar !== ''
                     && preg_match('/^\d+$/', $lineSoFar) === 1
                     && $next === ' ',
-                '!' => $next === '[',
+                '!' => $next === '[' && isset($linkBrackets[$i + 1]),
                 default => false,
             };
 
