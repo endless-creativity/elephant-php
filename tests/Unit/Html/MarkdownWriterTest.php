@@ -100,6 +100,29 @@ it('strips mixed leading tabs and spaces from a paragraph', function (): void {
     expect(MarkdownWriter::write([$node]))->toBe("contro\n\n");
 });
 
+it('does not emit an HTML anchor for an element carrying an id', function (): void {
+    // Word fills documents with bookmarks (`_Toc...`, `_Hlk...`,
+    // `_Ref...`) which the converter renders as <a id> in HTML. Markdown
+    // output must stay HTML-free, so the id is silently dropped here.
+    $node = el('h1', children: [
+        el('a', attributes: ['id' => '_Toc0']),
+        txt('Heading'),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("# Heading\n\n");
+});
+
+it('still renders an <a href> as a normal markdown link even when it carries an id', function (): void {
+    // A real link with both id and href: drop the id, keep the link.
+    $node = el('p', children: [
+        el('a', attributes: ['id' => 'comment-ref-1', 'href' => '#comment-1'], children: [
+            txt('see'),
+        ]),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))->toBe("[see](#comment-1)\n\n");
+});
+
 it('keeps the leading tab on a nested list item so the parser sees the nesting', function (): void {
     $list = el('ul', children: [
         el('li', children: [

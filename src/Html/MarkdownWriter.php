@@ -201,14 +201,14 @@ final class MarkdownWriter
             $this->list = $descriptor['list'];
         }
 
-        $anchorBefore = ($descriptor['anchorPosition'] ?? null) === 'before';
-        if ($anchorBefore) {
-            $this->writeAnchor($element->tag->attributes);
-        }
+        // Mammoth emits a literal `<a id="...">` here for any element
+        // carrying an id (so bookmarks survive in markdown). We don't:
+        // markdown should be markdown, not HTML inline. BookmarkStart
+        // therefore renders to nothing in markdown output and the id is
+        // only preserved by the HTML writer. The `anchorPosition` key on
+        // a descriptor is now inert -- kept for parity with mammoth's
+        // descriptor shape.
         $this->output .= $descriptor['start'] ?? '';
-        if (! $anchorBefore) {
-            $this->writeAnchor($element->tag->attributes);
-        }
     }
 
     private function closeElement(): void
@@ -221,16 +221,6 @@ final class MarkdownWriter
         $end = $frame['end'];
         $rendered = $end instanceof Closure ? $end() : $end;
         $this->output .= $rendered ?? '';
-    }
-
-    /**
-     * @param  array<string, string>  $attributes
-     */
-    private function writeAnchor(array $attributes): void
-    {
-        if (isset($attributes['id'])) {
-            $this->output .= '<a id="'.$attributes['id'].'"></a>';
-        }
     }
 
     /**
@@ -269,7 +259,7 @@ final class MarkdownWriter
             return ['end' => ''];
         }
 
-        return ['start' => '[', 'end' => ']('.$href.')', 'anchorPosition' => 'before'];
+        return ['start' => '[', 'end' => ']('.$href.')'];
     }
 
     /**
