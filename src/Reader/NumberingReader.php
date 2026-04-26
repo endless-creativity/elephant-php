@@ -56,10 +56,12 @@ final class NumberingReader
             $levelIndex = $levelElement->attribute('w:ilvl');
             $numFmt = $levelElement->first('w:numFmt')?->attribute('w:val');
             $isOrdered = $numFmt !== 'bullet';
+            $startAttr = $levelElement->first('w:start')?->attribute('w:val');
 
             $level = new NumberingLevel(
                 level: (int) ($levelIndex ?? 0),
                 isOrdered: $isOrdered,
+                start: $startAttr !== null ? (int) $startAttr : null,
             );
 
             if ($levelIndex === null) {

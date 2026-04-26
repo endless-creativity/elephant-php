@@ -287,6 +287,27 @@ it('renders an ordered list with incrementing numbers', function (): void {
     expect(MarkdownWriter::write([$list]))->toBe("1. one\n2. two\n\n");
 });
 
+it('honours <ol start="N"> when rendering the first item number', function (): void {
+    // Word's exporter sometimes splits a continuous "1., 2., 3." into
+    // separate single-item ordered lists each with `<w:start>`. The
+    // converter forwards that on the <ol> as `start`, and we render
+    // the first marker as that number rather than always 1.
+    $list = el('ol', attributes: ['start' => '2'], children: [
+        el('li', children: [txt('Il compenso')]),
+    ]);
+
+    expect(MarkdownWriter::write([$list]))->toBe("2. Il compenso\n\n");
+});
+
+it('continues numbering from the start attribute across items', function (): void {
+    $list = el('ol', attributes: ['start' => '5'], children: [
+        el('li', children: [txt('e')]),
+        el('li', children: [txt('f')]),
+    ]);
+
+    expect(MarkdownWriter::write([$list]))->toBe("5. e\n6. f\n\n");
+});
+
 it('indents nested lists with tabs and reuses the parent newline', function (): void {
     $list = el('ul', children: [
         el('li', children: [

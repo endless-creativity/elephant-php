@@ -6,13 +6,16 @@ use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
 
 /**
- * @param  list<array{ilvl: string, fmt: ?string}>  $levels
+ * @param  list<array{ilvl: string, fmt: ?string, start?: string}>  $levels
  */
 function abstractNumElement(string $abstractNumId, array $levels): Element
 {
     $children = [];
     foreach ($levels as $level) {
         $levelChildren = [];
+        if (isset($level['start'])) {
+            $levelChildren[] = new Element(name: 'w:start', attributes: ['w:val' => $level['start']]);
+        }
         if ($level['fmt'] !== null) {
             $levelChildren[] = new Element(name: 'w:numFmt', attributes: ['w:val' => $level['fmt']]);
         }
@@ -112,4 +115,26 @@ it('falls back to level 0 when a level lacks an ilvl attribute', function (): vo
     $level = $numbering->findLevel('1', '0');
     expect($level?->level)->toBe(0);
     expect($level?->isOrdered)->toBeFalse();
+});
+
+it('reads <w:start> as the level start when present', function (): void {
+    $numbering = NumberingReader::readFromXml(numberingXml([
+        abstractNumElement(abstractNumId: '0', levels: [
+            ['ilvl' => '0', 'fmt' => 'decimal', 'start' => '2'],
+        ]),
+        numElement(numId: '1', abstractNumId: '0'),
+    ]));
+
+    expect($numbering->findLevel('1', '0')?->start)->toBe(2);
+});
+
+it('leaves start null when no <w:start> is declared', function (): void {
+    $numbering = NumberingReader::readFromXml(numberingXml([
+        abstractNumElement(abstractNumId: '0', levels: [
+            ['ilvl' => '0', 'fmt' => 'decimal'],
+        ]),
+        numElement(numId: '1', abstractNumId: '0'),
+    ]));
+
+    expect($numbering->findLevel('1', '0')?->start)->toBeNull();
 });

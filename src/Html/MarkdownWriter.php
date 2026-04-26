@@ -242,7 +242,10 @@ final class MarkdownWriter
             'a' => self::linkDescriptor($attributes),
             'img' => self::imageDescriptor($attributes),
             'ul' => $this->listDescriptor(isOrdered: false),
-            'ol' => $this->listDescriptor(isOrdered: true),
+            'ol' => $this->listDescriptor(
+                isOrdered: true,
+                start: isset($attributes['start']) ? (int) $attributes['start'] : 1,
+            ),
             'li' => $this->listItemDescriptor(),
             default => ['end' => ''],
         };
@@ -280,7 +283,7 @@ final class MarkdownWriter
     /**
      * @return array{start: string, end: string, list: array{isOrdered: bool, indent: int, count: int}}
      */
-    private function listDescriptor(bool $isOrdered): array
+    private function listDescriptor(bool $isOrdered, int $start = 1): array
     {
         $nested = $this->list !== null;
 
@@ -290,7 +293,8 @@ final class MarkdownWriter
             'list' => [
                 'isOrdered' => $isOrdered,
                 'indent' => $nested ? $this->list['indent'] + 1 : 0,
-                'count' => 0,
+                // First listItemDescriptor() does count++, producing $start.
+                'count' => $start - 1,
             ],
         ];
     }

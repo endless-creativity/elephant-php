@@ -548,6 +548,18 @@ final class DocumentConverter
     {
         $listTag = $numbering->isOrdered ? 'ol' : 'ul';
 
+        // Word sometimes encodes "1., 2., 3." as separate single-item lists
+        // each with its own `<w:start>`. We forward that on the deepest <ol>
+        // as a `start` attribute. A non-null start also makes the deepest
+        // list `fresh: true` so the simplifier won't fold two
+        // explicit-start lists into one and lose the second start value.
+        $listAttributes = [];
+        $listFresh = false;
+        if ($numbering->isOrdered && $numbering->start !== null && $numbering->start !== 1) {
+            $listAttributes['start'] = (string) $numbering->start;
+            $listFresh = true;
+        }
+
         $node = new HtmlElement(
             tag: new Tag(tagName: 'li', fresh: true),
             children: $children,
@@ -556,7 +568,7 @@ final class DocumentConverter
         // sibling deepest list of the same kind, but should NOT merge across
         // ul/ol boundaries -- so no matchAlternativeTagNames here.
         $node = new HtmlElement(
-            tag: new Tag(tagName: $listTag, fresh: false),
+            tag: new Tag(tagName: $listTag, attributes: $listAttributes, fresh: $listFresh),
             children: [$node],
         );
         // Outer wrappers (one (li, list) pair per ancestor level) merge into
