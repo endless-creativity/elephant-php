@@ -5,6 +5,10 @@
     "license": "BSD-2-Clause",
     "keywords": ["docx", "word", "markdown", "html", "converter", "office", "ooxml", "document"],
     "homepage": "https://github.com/endless-creativity/elephant-php",
+    "support": {
+        "issues": "https://github.com/endless-creativity/elephant-php/issues",
+        "source": "https://github.com/endless-creativity/elephant-php"
+    },
     "authors": [
         {
             "name": "Endless Creativity",
