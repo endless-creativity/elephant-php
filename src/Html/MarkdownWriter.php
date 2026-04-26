@@ -175,7 +175,7 @@ final class MarkdownWriter
     {
         foreach ($nodes as $node) {
             if ($node instanceof Text) {
-                $this->output .= self::escape($node->value);
+                $this->output .= $this->smartEscape($node->value);
 
                 continue;
             }
@@ -237,7 +237,7 @@ final class MarkdownWriter
         return match ($tagName) {
             'p' => ['start' => '', 'end' => "\n\n"],
             'br' => ['start' => '', 'end' => "  \n"],
-            'strong' => ['start' => '__', 'end' => '__'],
+            'strong' => ['start' => '**', 'end' => '**'],
             'em' => ['start' => '*', 'end' => '*'],
             'a' => self::linkDescriptor($attributes),
             'img' => self::imageDescriptor($attributes),
@@ -324,11 +324,74 @@ final class MarkdownWriter
         ];
     }
 
-    private static function escape(string $value): string
+    /**
+     * Context-aware Markdown escape. Mammoth's blanket escape (every
+     * occurrence of `` ` * _ { } [ ] ( ) # + - . ! ``) creates a lot of
+     * visual noise on docx-derived text -- e.g. fill-in fields like
+     * `_______________` and inline punctuation like `c.c.` get escaped
+     * even though CommonMark would parse them as literal text. Here we
+     * escape only the characters that would actually be parsed as syntax
+     * in their position:
+     *
+     * - `` \ ``, `` ` ``, `[`, `]`: always (any unescaped occurrence
+     *   could open a code span or link reference)
+     * - `#`, `+`: only at line start (heading / list marker)
+     * - `-`: only at line start when followed by space (list marker)
+     * - `.`: only after a digit run that begins at line start (ordered
+     *   list marker pattern `\d+. `)
+     * - `!`: only when followed by `[` (image syntax `![alt](src)`)
+     * - `*`, `_`, `(`, `)`, `{`, `}`, `<`, `>`: never. CommonMark's
+     *   flanking-delimiter and intraword rules mean docx-derived runs
+     *   like `_______` between space and punctuation don't open
+     *   emphasis, and parens don't open links without a preceding `]`.
+     *
+     * Because the decision depends on `$this->output` (line position),
+     * this is an instance method, not static.
+     */
+    private function smartEscape(string $text): string
     {
-        // Backslash first so we don't double-escape the backslashes we add.
-        $value = str_replace('\\', '\\\\', $value);
+        if ($text === '') {
+            return '';
+        }
 
-        return preg_replace('/([`*_{}\[\]()#+\-.!])/', '\\\\$1', $value) ?? $value;
+        $atLineStart = $this->output === '' || str_ends_with($this->output, "\n");
+        // Tracks the chars emitted on the current line so far, scoped to
+        // this chunk -- reset only on internal `\n`. Used solely for the
+        // `\d+. ` ordered-list-marker detection.
+        $lineSoFar = $atLineStart ? '' : null;
+
+        $result = '';
+        $len = strlen($text);
+        for ($i = 0; $i < $len; $i++) {
+            $char = $text[$i];
+            $next = $i + 1 < $len ? $text[$i + 1] : '';
+
+            $escape = match ($char) {
+                '\\', '`', '[', ']' => true,
+                '#', '+' => $atLineStart,
+                '-' => $atLineStart && $next === ' ',
+                '.' => $lineSoFar !== null
+                    && $lineSoFar !== ''
+                    && preg_match('/^\d+$/', $lineSoFar) === 1
+                    && $next === ' ',
+                '!' => $next === '[',
+                default => false,
+            };
+
+            $emitted = $escape ? '\\'.$char : $char;
+            $result .= $emitted;
+
+            if ($char === "\n") {
+                $atLineStart = true;
+                $lineSoFar = '';
+            } else {
+                $atLineStart = false;
+                if ($lineSoFar !== null) {
+                    $lineSoFar .= $emitted;
+                }
+            }
+        }
+
+        return $result;
     }
 }

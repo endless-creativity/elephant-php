@@ -21,12 +21,12 @@ function txt(string $value): Text
     return new Text(value: $value);
 }
 
-it('renders a paragraph as text followed by two newlines', function (): void {
-    // The trailing period is escaped to keep markdown parsers from
-    // treating a leading number as the start of an ordered list -- this
-    // matches mammoth.js's escape set exactly.
+it('renders a paragraph as text followed by two newlines, with no escape on a trailing period', function (): void {
+    // The trailing period is *not* escaped: it would only matter at line
+    // start after a digit run (`1. `), which is not the case here. Mammoth
+    // would have escaped it; we don't.
     expect(MarkdownWriter::write([el('p', children: [txt('Hello.')])]))
-        ->toBe("Hello\\.\n\n");
+        ->toBe("Hello.\n\n");
 });
 
 it('hoists leading whitespace out of <strong> and drops it at line start', function (): void {
@@ -37,7 +37,7 @@ it('hoists leading whitespace out of <strong> and drops it at line start', funct
         el('strong', children: [txt('    Bau')]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("__Bau__\n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("**Bau**\n\n");
 });
 
 it('hoists trailing whitespace out of <strong> and keeps it after the wrapper', function (): void {
@@ -47,7 +47,7 @@ it('hoists trailing whitespace out of <strong> and keeps it after the wrapper', 
         el('strong', children: [txt('Bau    ')]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("__Bau__    \n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("**Bau**    \n\n");
 });
 
 it('strips line-leading whitespace from an <em> wrapper while keeping trailing', function (): void {
@@ -76,7 +76,7 @@ it('hoists whitespace through nested emphasis recursively then strips at line st
         ]),
     ]);
 
-    expect(MarkdownWriter::write([$node]))->toBe("__*hi*__    \n\n");
+    expect(MarkdownWriter::write([$node]))->toBe("***hi***    \n\n");
 });
 
 it('strips a run of leading spaces inside a paragraph, not just at doc start', function (): void {
@@ -137,10 +137,10 @@ it('keeps the leading tab on a nested list item so the parser sees the nesting',
     expect(MarkdownWriter::write([$list]))->toBe("- A\n\t- a1\n- B\n\n");
 });
 
-it('renders <strong> as __ wrappers', function (): void {
+it('renders <strong> as ** wrappers (asterisks, to avoid clash with literal underscores)', function (): void {
     expect(MarkdownWriter::write([el('p', children: [
         el('strong', children: [txt('bold')]),
-    ])]))->toBe("__bold__\n\n");
+    ])]))->toBe("**bold**\n\n");
 });
 
 it('renders <em> as * wrappers', function (): void {
@@ -185,9 +185,65 @@ it('renders <br> as a two-space hard line break inside a paragraph', function ()
     expect(MarkdownWriter::write([$node]))->toBe("a  \nb\n\n");
 });
 
-it('escapes markdown-special characters in text', function (): void {
+it('escapes only chars that would actually be parsed as markdown in this position', function (): void {
+    // Mid-text: `[` `]` are always escaped (could form link refs); `*` `_`
+    // `(` `)` `#` are not escaped because CommonMark would not parse them
+    // as syntax in this position (intraword underscore rule, asterisks
+    // not flanking, parens only matter after `]`, `#` only at line start).
     expect(MarkdownWriter::write([txt('a*b_c[d](e)#')]))
-        ->toBe('a\\*b\\_c\\[d\\]\\(e\\)\\#');
+        ->toBe('a*b_c\\[d\\](e)#');
+});
+
+it('leaves long underscore runs alone (the typical Word fill-in field)', function (): void {
+    // PHPWord+CommonMark output style: the underscore run is between
+    // whitespace and punctuation, so CommonMark never opens emphasis on
+    // it. No escape needed -- the user's main motivation for switching.
+    $node = el('p', children: [txt('La società ___________________, con sede in __________')]);
+
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("La società ___________________, con sede in __________\n\n");
+});
+
+it('does not escape periods, parens or dashes mid-text', function (): void {
+    $node = el('p', children: [txt('see (articoli 2222 c.c. e seguenti) - art. 1')]);
+
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("see (articoli 2222 c.c. e seguenti) - art. 1\n\n");
+});
+
+it('escapes # only at line start (heading marker)', function (): void {
+    // Mid-text `#` is literal; at line start it would start a heading
+    // and must be escaped to render as `#` text.
+    $start = el('p', children: [txt('# not a heading')]);
+    $mid = el('p', children: [txt('issue # 42')]);
+
+    expect(MarkdownWriter::write([$start]))->toBe("\\# not a heading\n\n");
+    expect(MarkdownWriter::write([$mid]))->toBe("issue # 42\n\n");
+});
+
+it('escapes - at line start when it would start a list item', function (): void {
+    $list = el('p', children: [txt('- not a list')]);
+    $mid = el('p', children: [txt('range 1-10')]);
+
+    expect(MarkdownWriter::write([$list]))->toBe("\\- not a list\n\n");
+    expect(MarkdownWriter::write([$mid]))->toBe("range 1-10\n\n");
+});
+
+it('escapes . after a digit run at line start (ordered-list marker)', function (): void {
+    $list = el('p', children: [txt('1. not a list')]);
+    $mid = el('p', children: [txt('Art. 2 - Natura')]);
+
+    expect(MarkdownWriter::write([$list]))->toBe("1\\. not a list\n\n");
+    expect(MarkdownWriter::write([$mid]))->toBe("Art. 2 - Natura\n\n");
+});
+
+it('escapes ! only when followed by [ (image syntax)', function (): void {
+    $img = el('p', children: [txt('not an ![image](src) here')]);
+    $excl = el('p', children: [txt('hello!')]);
+
+    // Both `!` (only before `[`) and `[` `]` (always) are escaped here.
+    expect(MarkdownWriter::write([$img]))->toBe("not an \\!\\[image\\](src) here\n\n");
+    expect(MarkdownWriter::write([$excl]))->toBe("hello!\n\n");
 });
 
 it('escapes a literal backslash by doubling it', function (): void {
