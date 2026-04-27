@@ -73,6 +73,25 @@ it('converts tiny-picture.docx into a paragraph with an embedded data-URI <img>'
     expect($result->value)->toBe('<p><img src="'.$expectedSrc.'" /></p>');
 });
 
+it('converts split-ordered-list.docx honouring <w:start> in HTML', function (): void {
+    // Two ordered items backed by separate abstractNums with start=1 and
+    // start=2, separated by a plain paragraph -- the pattern Word produces
+    // when the user inserts content between list items.
+    $result = (new Converter())->convertToHtml(fixture('split-ordered-list.docx'));
+
+    expect($result->value)->toBe(
+        '<ol><li>primo</li></ol>'
+        .'<p>tra i due</p>'
+        .'<ol start="2"><li>secondo</li></ol>',
+    );
+});
+
+it('converts split-ordered-list.docx honouring <w:start> in Markdown', function (): void {
+    $result = (new Converter())->convertToMarkdown(fixture('split-ordered-list.docx'));
+
+    expect($result->value)->toBe("1. primo\n\ntra i due\n\n2. secondo\n\n");
+});
+
 it('converts footnotes.docx with note references and a notes section', function (): void {
     $html = (new Converter())->convertToHtml(fixture('footnotes.docx'))->value;
 
