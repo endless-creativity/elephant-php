@@ -25,3 +25,13 @@ Port PHP di mammoth.js per convertire .docx in HTML semantico e Markdown.
 ## Reference
 Il codice originale di mammoth.js è in `./reference/mammoth.js/`.
 Consultalo per ogni decisione di edge case, non reinventare.
+
+## Flusso di release
+Ordine obbligatorio quando si pubblica una nuova versione:
+1. Aggiornare `CHANGELOG.md` (sezione nuova `## [x.y.z] — YYYY-MM-DD`)
+2. Commit del changelog
+3. `git tag -a vX.Y.Z -m "..."`
+4. `git push origin main && git push origin vX.Y.Z`
+
+Mai taggare prima di aver scritto l'entry: il tag finisce subito su Packagist
+e spostarlo dopo è scomodo.
