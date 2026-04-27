@@ -80,16 +80,16 @@ it('converts split-ordered-list.docx honouring <w:start> in HTML', function (): 
     $result = (new Converter())->convertToHtml(fixture('split-ordered-list.docx'));
 
     expect($result->value)->toBe(
-        '<ol><li>primo</li></ol>'
-        .'<p>tra i due</p>'
-        .'<ol start="2"><li>secondo</li></ol>',
+        '<ol><li>first</li></ol>'
+        .'<p>in between</p>'
+        .'<ol start="2"><li>second</li></ol>',
     );
 });
 
 it('converts split-ordered-list.docx honouring <w:start> in Markdown', function (): void {
     $result = (new Converter())->convertToMarkdown(fixture('split-ordered-list.docx'));
 
-    expect($result->value)->toBe("1. primo\n\ntra i due\n\n2. secondo\n\n");
+    expect($result->value)->toBe("1. first\n\nin between\n\n2. second\n\n");
 });
 
 it('converts footnotes.docx with note references and a notes section', function (): void {
