@@ -12,6 +12,44 @@ DSL list matchers (`p:unordered-list(N)`), DSL `:separator(...)` and
 escape sequences, `transformDocument` callback, `idPrefix` /
 `prettyPrint` / `ignoreEmptyParagraphs` options.
 
+## [0.2.0] — 2026-04-27
+
+Cleaner Markdown output and faithful Word numbering. The public API is
+unchanged; output format has shifted in ways that may affect downstream
+consumers diffing rendered Markdown.
+
+### Changed
+
+- **Bold marker switched from `__` to `**`.** The double-underscore
+  wrapper clashed with literal underscore runs (Word fill-in fields
+  like `_______`), breaking surrounding emphasis. Asterisks have no
+  intraword conflict in docx-derived content.
+- **Replaced mammoth's blanket text escape with a context-aware one.**
+  `*`, `_`, `(`, `)`, `{`, `}` are never escaped; `#`, `+`, `-`, `.`
+  only when at line start in a position that would parse as syntax;
+  `[` and `]` only when forming the inline-link pattern `[text](url)`
+  (citation-style brackets like `[1]`, `[Nota]`, `[sic]` stay
+  literal); `!` only before such a link pattern. `\` and backtick
+  remain always escaped.
+
+### Added
+
+- **Honour `<w:start>` from numbering definitions.** Word's exporter
+  often splits a visually continuous "1., 2., 3." sequence into
+  separate single-item ordered lists, each with its own `<w:start>`
+  in the abstract numbering. Previously every chunk restarted at 1;
+  the converter now forwards `start` on `<ol>` and the Markdown
+  writer renders the first item from that number. `NumberingLevel`
+  gained an optional `start: ?int` field.
+
+### Fixed
+
+- **Drop HTML `<a id="...">` anchors from Markdown output.** Bookmarks
+  (Word's `_Toc...`, `_Hlk...`, `_Ref...`) used to leak into the
+  Markdown as raw HTML; they are now silently elided. Real links
+  (`<a href>`) are unaffected. HTML output keeps the anchors as
+  before.
+
 ## [0.1.0] — initial release
 
 First public release. Functionally equivalent to mammoth.js for typical
