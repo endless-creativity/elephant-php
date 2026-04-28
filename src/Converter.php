@@ -76,6 +76,11 @@ final class Converter
         // converted document inside a larger page so its bookmark,
         // footnote and comment ids don't collide.
         private readonly string $idPrefix = '',
+        // When true (the mammoth default), paragraphs that resolve to
+        // no rendered children are dropped. Set to false to preserve
+        // them as `<p></p>` so the document's intentional vertical
+        // spacing survives the conversion.
+        private readonly bool $ignoreEmptyParagraphs = true,
     ) {
         $base = StyleMap::default();
         $this->styleMap = $styleMap === null
@@ -239,6 +244,7 @@ final class Converter
             styleMap: $this->styleMap,
             imageHandler: $this->imageHandler,
             idPrefix: $this->idPrefix,
+            ignoreEmptyParagraphs: $this->ignoreEmptyParagraphs,
         );
         $htmlResult = $write($converter, $documentResult->value);
 

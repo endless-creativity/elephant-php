@@ -53,6 +53,12 @@ final class DocumentConverter
         // converted output inside a larger page so the ids don't
         // collide with other content. Empty string = no prefix.
         private readonly string $idPrefix = '',
+        // When true (the default, matching mammoth), paragraphs that
+        // contain no rendered content are dropped by the simplifier.
+        // Set to false to preserve them as `<p></p>`, which the layout
+        // engine renders as a vertical gap. Used when the document's
+        // visual whitespace carries meaning (e.g. signature lines).
+        private readonly bool $ignoreEmptyParagraphs = true,
     ) {
         $this->styleMap = $styleMap ?? StyleMap::default();
         $this->comments = new Comments();
@@ -517,14 +523,17 @@ final class DocumentConverter
      */
     private function convertParagraph(Paragraph $paragraph, array &$messages): array
     {
-        if ($paragraph->numbering !== null) {
-            return [self::wrapAsListItem(
-                $paragraph->numbering,
-                $this->convertNodes($paragraph->children, $messages),
-            )];
-        }
+        $childNodes = $this->convertNodes($paragraph->children, $messages);
+        // With ignoreEmptyParagraphs=false we prepend ForceWrite so the
+        // simplifier keeps the surrounding wrapper (`<p>`, `<li>`, etc.)
+        // even when no content was rendered. Mammoth uses the same trick.
+        $children = $this->ignoreEmptyParagraphs
+            ? $childNodes
+            : array_merge([new ForceWrite()], $childNodes);
 
-        $children = $this->convertNodes($paragraph->children, $messages);
+        if ($paragraph->numbering !== null) {
+            return [self::wrapAsListItem($paragraph->numbering, $children)];
+        }
 
         $mapping = $this->styleMap->findForParagraph($paragraph);
         if ($mapping !== null) {
