@@ -1,77 +1,78 @@
 # elephant-php
 
-Port PHP di mammoth.js per convertire .docx in HTML semantico e Markdown.
+PHP port of mammoth.js for converting .docx into semantic HTML and Markdown.
 
-## Audience: libreria pubblica server-side
-Questo repository è una libreria pubblica pubblicata su Packagist e usata
-in contesti server-side internazionali. Tutto ciò che committiamo finisce
-in mano a sviluppatori esterni di lingua qualunque, e una volta taggato
-finisce su Packagist senza possibilità di "ripensamenti puliti". Quindi:
+## Audience: public server-side library
+This repository ships a public library on Packagist used in
+international server-side contexts. Anything committed lands in front
+of external developers in any language, and once tagged it ends up on
+Packagist with no clean way to take it back. So:
 
-- **Tutto ciò che è committato deve essere in inglese**: codice, commenti,
-  commit message, CHANGELOG, ROADMAP, README, CONTRIBUTING, tag message,
-  PR descriptions. L'italiano resta esclusivamente nella conversazione
-  qui in chat. Quando aggiungo o modifico un file, prima di committare
-  controllo che non ci siano residui di italiano.
-- **Niente informazioni di gestione interna nei file pubblici**:
-  - frasi tipo "in our deployments", "in this session", "we just shipped",
-    "our team uses..." appartengono a doc interne, non a una libreria
-    pubblica;
-  - snapshot numerici che invecchiano subito ("66 commits", "400 tests
-    passing") in file versionati creano debito di manutenzione e non
-    aggiungono valore al consumatore esterno;
-  - riferimenti a workflow interni, persone, decisioni di processo non
-    vanno in CHANGELOG / ROADMAP / README;
-  - i messaggi di commit possono essere più discorsivi, ma anche lì
-    evitiamo "I", "we just", "this session" -- meglio descrivere la
-    modifica in terza persona impersonale.
-- **Best practice di librerie pubbliche** che applichiamo by default:
-  - SemVer rigoroso, anche pre-1.0 il bump minor segnala feature, patch
-    segnala fix, e qualsiasi cambio di output o di firma pubblica viene
-    annunciato nel CHANGELOG;
-  - CHANGELOG in formato Keep a Changelog, una entry per release con
-    sezioni Added / Changed / Fixed / Removed / Deprecated / Security;
-  - sicurezza-by-default: input attaccabile (XML, ZIP, URL, path) viene
-    trattato come ostile e documentato esplicitamente nelle release notes;
-  - attribution chiara per il codice portato (header `// Ported from
-    mammoth.js: lib/path/to/file.js`) e licenza visibile nel README;
-  - API pubblica documentata via README + esempi eseguibili; namespace
-    interni mantenuti `internal` con commento.
+- **Everything committed must be in English**: code, comments, commit
+  messages, CHANGELOG, ROADMAP, README, CONTRIBUTING, tag messages, PR
+  descriptions, even this CLAUDE.md. Italian stays exclusively in the
+  chat conversation. Before committing an edited file, scan for
+  Italian residue and remove it.
+- **No internal-management information in public files**:
+  - phrasing like "in our deployments", "in this session", "we just
+    shipped", "our team uses..." belongs to internal docs, not a
+    public library;
+  - numeric snapshots that age fast ("66 commits", "400 tests
+    passing") create maintenance debt and add no value to the
+    external consumer;
+  - references to internal workflow, people, or process decisions do
+    not belong in CHANGELOG / ROADMAP / README;
+  - commit messages can be more discursive but still avoid "I", "we
+    just", "this session" — describe the change in impersonal third
+    person.
+- **Public-library best practices** applied by default:
+  - strict SemVer; even pre-1.0 a minor bump signals a feature, a
+    patch signals a fix, and any change to output or public signature
+    is announced in the CHANGELOG;
+  - CHANGELOG in Keep a Changelog format, one entry per release with
+    Added / Changed / Fixed / Removed / Deprecated / Security
+    sections;
+  - security-by-default: attackable input (XML, ZIP, URLs, paths) is
+    treated as hostile and the choice is documented explicitly in
+    release notes;
+  - clear attribution for ported code (`// Ported from mammoth.js:
+    lib/path/to/file.js` header) and a visible licence in the README;
+  - public API documented in the README with runnable examples;
+    internal namespaces stay marked as implementation detail.
 
-Quando proponi modifiche ai file pubblici, segnala subito se rilevi
-violazioni di queste regole anche nel contenuto preesistente, e
-proponi la pulizia.
+When proposing changes to public files, flag any violation of these
+rules in pre-existing content and suggest the cleanup.
 
 ## Stack
 - PHP 8.2+
-- Pest per i test
-- PHPStan livello 8
-- Laravel Pint per lo stile (PSR-12)
+- Pest for tests
+- PHPStan level 8
+- Laravel Pint for style (PSR-12)
 
-## Regole sempre valide
-- `declare(strict_types=1);` in ogni file PHP
-- Named arguments per chiamate con più di 2 parametri
-- Readonly classes e properties dove possibile
-- Enum PHP 8.1+ invece di costanti dove appropriato
-- Mai scrivere codice senza un test che lo motivi prima
-- Ogni file PHP portato da mammoth deve avere in cima:
+## Always-on rules
+- `declare(strict_types=1);` in every PHP file
+- Named arguments for calls with more than 2 parameters
+- Readonly classes and properties wherever possible
+- PHP 8.1+ enums instead of constants where appropriate
+- Never write code without a test that motivates it first
+- Every PHP file ported from mammoth must carry a header:
   `// Ported from mammoth.js: lib/path/to/file.js`
 
-## Comandi utili
-- Test: `./vendor/bin/pest`
+## Useful commands
+- Tests: `./vendor/bin/pest`
 - Static analysis: `./vendor/bin/phpstan analyse`
 - Format: `./vendor/bin/pint`
 
 ## Reference
-Il codice originale di mammoth.js è in `./reference/mammoth.js/`.
-Consultalo per ogni decisione di edge case, non reinventare.
+The original mammoth.js source lives in `./reference/mammoth.js/`.
+Consult it for every edge-case decision rather than reinventing.
 
-## Flusso di release
-Ordine obbligatorio quando si pubblica una nuova versione:
-1. Aggiornare `CHANGELOG.md` (sezione nuova `## [x.y.z] — YYYY-MM-DD`)
-2. Commit del changelog
+## Release flow
+Mandatory order when publishing a new version:
+1. Update `CHANGELOG.md` (new section `## [x.y.z] — YYYY-MM-DD`)
+2. Commit the changelog
 3. `git tag -a vX.Y.Z -m "..."`
 4. `git push origin main && git push origin vX.Y.Z`
 
-Mai taggare prima di aver scritto l'entry: il tag finisce subito su Packagist
-e spostarlo dopo è scomodo.
+Never tag before writing the entry: the tag immediately reaches
+Packagist and moving it after the fact is awkward.
