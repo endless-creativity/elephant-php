@@ -71,6 +71,11 @@ final class Converter
     public function __construct(
         ?array $styleMap = null,
         private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
+        // Prepended to every HTML `id` attribute we emit (and to the
+        // matching `#fragment` hrefs). Useful when embedding the
+        // converted document inside a larger page so its bookmark,
+        // footnote and comment ids don't collide.
+        private readonly string $idPrefix = '',
     ) {
         $base = StyleMap::default();
         $this->styleMap = $styleMap === null
@@ -233,6 +238,7 @@ final class Converter
         $converter = new DocumentConverter(
             styleMap: $this->styleMap,
             imageHandler: $this->imageHandler,
+            idPrefix: $this->idPrefix,
         );
         $htmlResult = $write($converter, $documentResult->value);
 

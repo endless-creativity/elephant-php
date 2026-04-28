@@ -47,6 +47,12 @@ final class DocumentConverter
     public function __construct(
         ?StyleMap $styleMap = null,
         private readonly ImageHandler $imageHandler = new DataUriImageHandler(),
+        // Prepended to every HTML `id` attribute we emit (bookmarks,
+        // comment-ref/target, footnote/endnote ref/target) and to the
+        // matching `#fragment` hrefs. Use this when embedding the
+        // converted output inside a larger page so the ids don't
+        // collide with other content. Empty string = no prefix.
+        private readonly string $idPrefix = '',
     ) {
         $this->styleMap = $styleMap ?? StyleMap::default();
         $this->comments = new Comments();
@@ -137,14 +143,14 @@ final class DocumentConverter
             children: [
                 new HtmlText(value: ' '),
                 new HtmlElement(
-                    tag: new Tag(tagName: 'a', attributes: ['href' => '#'.self::noteRefId($note->noteType, $note->noteId)]),
+                    tag: new Tag(tagName: 'a', attributes: ['href' => '#'.$this->noteRefId($note->noteType, $note->noteId)]),
                     children: [new HtmlText(value: '↑')],
                 ),
             ],
         );
 
         return new HtmlElement(
-            tag: new Tag(tagName: 'li', attributes: ['id' => self::noteId($note->noteType, $note->noteId)]),
+            tag: new Tag(tagName: 'li', attributes: ['id' => $this->noteId($note->noteType, $note->noteId)]),
             children: [...$body, $backLink],
         );
     }
@@ -172,8 +178,8 @@ final class DocumentConverter
 
         $anchor = new HtmlElement(
             tag: new Tag(tagName: 'a', attributes: [
-                'href' => '#'.self::commentTargetId($comment->commentId),
-                'id' => self::commentReferenceId($comment->commentId),
+                'href' => '#'.$this->commentTargetId($comment->commentId),
+                'id' => $this->commentReferenceId($comment->commentId),
             ]),
             children: [new HtmlText(value: $label)],
         );
@@ -198,7 +204,7 @@ final class DocumentConverter
                     new HtmlText(value: ' '),
                     new HtmlElement(
                         tag: new Tag(tagName: 'a', attributes: [
-                            'href' => '#'.self::commentReferenceId($comment->commentId),
+                            'href' => '#'.$this->commentReferenceId($comment->commentId),
                         ]),
                         children: [new HtmlText(value: '↑')],
                     ),
@@ -207,7 +213,7 @@ final class DocumentConverter
 
             $items[] = new HtmlElement(
                 tag: new Tag(tagName: 'dt', attributes: [
-                    'id' => self::commentTargetId($comment->commentId),
+                    'id' => $this->commentTargetId($comment->commentId),
                 ]),
                 children: [new HtmlText(value: 'Comment '.$entry['label'])],
             );
@@ -220,24 +226,24 @@ final class DocumentConverter
         return $items;
     }
 
-    private static function commentTargetId(string $id): string
+    private function commentTargetId(string $id): string
     {
-        return 'comment-'.$id;
+        return $this->idPrefix.'comment-'.$id;
     }
 
-    private static function commentReferenceId(string $id): string
+    private function commentReferenceId(string $id): string
     {
-        return 'comment-ref-'.$id;
+        return $this->idPrefix.'comment-ref-'.$id;
     }
 
-    private static function noteId(NoteType $type, string $id): string
+    private function noteId(NoteType $type, string $id): string
     {
-        return $type->value.'-'.$id;
+        return $this->idPrefix.$type->value.'-'.$id;
     }
 
-    private static function noteRefId(NoteType $type, string $id): string
+    private function noteRefId(NoteType $type, string $id): string
     {
-        return $type->value.'-ref-'.$id;
+        return $this->idPrefix.$type->value.'-ref-'.$id;
     }
 
     /**
@@ -317,7 +323,7 @@ final class DocumentConverter
 
         if ($node instanceof BookmarkStart) {
             return [new HtmlElement(
-                tag: new Tag(tagName: 'a', attributes: ['id' => $node->name], fresh: true),
+                tag: new Tag(tagName: 'a', attributes: ['id' => $this->idPrefix.$node->name], fresh: true),
                 children: [new ForceWrite()],
             )];
         }
@@ -356,8 +362,8 @@ final class DocumentConverter
             tag: new Tag(tagName: 'sup'),
             children: [new HtmlElement(
                 tag: new Tag(tagName: 'a', attributes: [
-                    'href' => '#'.self::noteId($reference->noteType, $reference->noteId),
-                    'id' => self::noteRefId($reference->noteType, $reference->noteId),
+                    'href' => '#'.$this->noteId($reference->noteType, $reference->noteId),
+                    'id' => $this->noteRefId($reference->noteType, $reference->noteId),
                 ]),
                 children: [new HtmlText(value: '['.$number.']')],
             )],
