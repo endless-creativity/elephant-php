@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class Paragraph implements Node
+final readonly class Paragraph implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -17,5 +17,20 @@ final readonly class Paragraph implements Node
         public ?string $styleName = null,
         public ?NumberingLevel $numbering = null,
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(
+            children: $children,
+            styleId: $this->styleId,
+            styleName: $this->styleName,
+            numbering: $this->numbering,
+        );
     }
 }

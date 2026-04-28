@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class TableRow implements Node
+final readonly class TableRow implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -15,5 +15,15 @@ final readonly class TableRow implements Node
         public array $children = [],
         public bool $isHeader = false,
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(children: $children, isHeader: $this->isHeader);
     }
 }

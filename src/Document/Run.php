@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class Run implements Node
+final readonly class Run implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -26,5 +26,29 @@ final readonly class Run implements Node
         public ?string $font = null,
         public ?float $fontSize = null,
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(
+            children: $children,
+            styleId: $this->styleId,
+            styleName: $this->styleName,
+            isBold: $this->isBold,
+            isItalic: $this->isItalic,
+            isUnderline: $this->isUnderline,
+            isStrikethrough: $this->isStrikethrough,
+            isAllCaps: $this->isAllCaps,
+            isSmallCaps: $this->isSmallCaps,
+            verticalAlignment: $this->verticalAlignment,
+            highlight: $this->highlight,
+            font: $this->font,
+            fontSize: $this->fontSize,
+        );
     }
 }

@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class Document implements Node
+final readonly class Document implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -16,5 +16,15 @@ final readonly class Document implements Node
         public Notes $notes = new Notes(),
         public Comments $comments = new Comments(),
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(children: $children, notes: $this->notes, comments: $this->comments);
     }
 }

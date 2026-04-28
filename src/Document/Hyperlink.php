@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class Hyperlink implements Node
+final readonly class Hyperlink implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -17,5 +17,20 @@ final readonly class Hyperlink implements Node
         public ?string $anchor = null,
         public ?string $targetFrame = null,
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(
+            children: $children,
+            href: $this->href,
+            anchor: $this->anchor,
+            targetFrame: $this->targetFrame,
+        );
     }
 }

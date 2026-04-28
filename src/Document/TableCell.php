@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp\Document;
 
-final readonly class TableCell implements Node
+final readonly class TableCell implements HasChildren
 {
     /**
      * @param  list<Node>  $children
@@ -21,5 +21,20 @@ final readonly class TableCell implements Node
         public int $rowSpan = 1,
         public ?bool $vMerge = null,
     ) {
+    }
+
+    public function getChildren(): array
+    {
+        return $this->children;
+    }
+
+    public function withChildren(array $children): self
+    {
+        return new self(
+            children: $children,
+            colSpan: $this->colSpan,
+            rowSpan: $this->rowSpan,
+            vMerge: $this->vMerge,
+        );
     }
 }

@@ -283,21 +283,7 @@ final class BodyReader
             if ($node instanceof Run) {
                 $inner = self::replaceFirstText($node->children, $replacement);
                 if ($inner['matched']) {
-                    $rebuilt[] = new Run(
-                        children: $inner['nodes'],
-                        styleId: $node->styleId,
-                        styleName: $node->styleName,
-                        isBold: $node->isBold,
-                        isItalic: $node->isItalic,
-                        isUnderline: $node->isUnderline,
-                        isStrikethrough: $node->isStrikethrough,
-                        isAllCaps: $node->isAllCaps,
-                        isSmallCaps: $node->isSmallCaps,
-                        verticalAlignment: $node->verticalAlignment,
-                        highlight: $node->highlight,
-                        font: $node->font,
-                        fontSize: $node->fontSize,
-                    );
+                    $rebuilt[] = $node->withChildren($inner['nodes']);
                     $matched = true;
 
                     continue;
