@@ -7,31 +7,66 @@ once it reaches 1.0.
 
 ## [Unreleased]
 
+Tracked in `ROADMAP.md`. Highlights still pending: DSL list
+matchers (`p:unordered-list(N)`); custom `underline` mappers; CLI
+`--style-map FILE`; track-changes deletion concatenation.
+
+## [0.3.0] — 2026-04-28
+
+Public API expansion to bring elephant-php to feature parity with
+mammoth's documented options, plus a security review that closes
+three vulnerabilities in the externally fed code paths.
+
 ### Added
 
 - **`Converter` options:** `idPrefix`, `ignoreEmptyParagraphs`,
   `prettyPrint`, `transformDocument` — all mirroring mammoth's
   same-named options. Defaults preserve existing behaviour.
-- **Checkbox form fields:** `<w:sdt><wordml:checkbox>` and
-  `FORMCHECKBOX` complex fields now produce `Checkbox` document
-  nodes that render as `<input type="checkbox">` (HTML) or
-  `[x]` / `[ ]` (Markdown).
+- **`Transforms` helpers** (`paragraph`, `run`, `elementsOfType`,
+  `elements`, `getDescendants`, `getDescendantsOfType`) for
+  walking and rebuilding the document tree, paired with
+  `transformDocument`. Backed by a new `HasChildren` interface
+  implemented by Document, Paragraph, Run, Hyperlink, Table,
+  TableRow, TableCell so each container exposes
+  `getChildren()` / `withChildren()`.
+- **Checkbox form fields:** `<w:sdt><wordml:checkbox>` content
+  controls and `FORMCHECKBOX` complex fields now produce
+  `Checkbox` document nodes that render as
+  `<input type="checkbox">` in HTML and `[x]` / `[ ]` in
+  Markdown (composes naturally to GFM task lists inside `<li>`).
 - **`numStyleLink` chasing in numbering:** an `<w:abstractNum>`
   pointing at a numbering-type `<w:style>` resolves transparently
   to that style's `<w:numId>`. Requires `Styles` to be passed to
   `NumberingReader`, which `Converter` now does automatically.
-- **`findLevelByParagraphStyleId` fallback** in body reader: when a
-  paragraph has only a styleId and no `<w:numPr>`, but the
+- **`findLevelByParagraphStyleId` fallback** in body reader: when
+  a paragraph has only a styleId and no `<w:numPr>`, but the
   numbering definition tied a level to that style via
   `<w:lvl><w:pStyle>`, the paragraph picks up the level.
-- **DSL style-map:** backslash escape sequences (`\n`, `\r`, `\t`,
-  `\\`, `\'`) inside `'...'` strings; `:separator('text')` modifier
-  on path elements.
+- **DSL style-map:** backslash escape sequences (`\n`, `\r`,
+  `\t`, `\\`, `\'`) inside `'...'` strings; `:separator('text')`
+  modifier on path elements.
 
-### Tracked in `ROADMAP.md` for later
+### Fixed (security)
 
-DSL list matchers (`p:unordered-list(N)`); `transforms.*` helpers;
-custom `underline` mappers; CLI `--style-map FILE`.
+- **r:link images are no longer fetched from disk.** Mammoth
+  resolves `<a:blip r:link="...">` via `fs.readFile` on the
+  relationship target; the path is attacker-controlled in any
+  user-uploaded scenario, exposing SSRF (`http://internal/...`),
+  LFI (`file:///etc/passwd`), `phar://` deserialisation and
+  arbitrary file reads via traversal. The reader now refuses to
+  load r:link bytes outright; the path is preserved on the Image
+  node so a `transformDocument` hook can make a different choice
+  after seeing the document.
+- **`javascript:` / `vbscript:` / `data:` hyperlinks are stripped.**
+  Match is case-insensitive and tolerates leading whitespace and
+  control characters (browsers do too). The `<a>` wrapper is
+  dropped; children render inline. `mailto:`, `tel:`, `https:`,
+  fragments, etc. flow through unchanged.
+- **XML parsing rejects DOCTYPE and disables network entity
+  loads.** Combined with the explicit `LIBXML_NONET` flag now
+  passed to `loadXML`, this neutralises XXE and billion-laughs:
+  an entity that's never read can't be expanded. Real OOXML
+  never declares a DOCTYPE.
 
 ## [0.2.0] — 2026-04-27
 

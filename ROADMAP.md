@@ -1,7 +1,7 @@
 # Roadmap & Known Gaps
 
-Snapshot at HEAD: **62 commit, 362 test verdi, PHPStan livello 8 clean, Pint pulito.**
-Per documenti reali (paragrafi, headings, run inline, hyperlink, liste annidate, tabelle con colspan/rowspan, immagini embedded e linkate, footnote/endnote, comments, simboli speciali, complex field hyperlink, checkbox SDT/FORMCHECKBOX) la libreria è **funzionalmente equivalente a mammoth.js**. Quello che segue è il delta residuo, ordinato per dominio.
+Snapshot at HEAD: **66 commit, 400 test verdi, PHPStan livello 8 clean, Pint pulito.**
+Per documenti reali (paragrafi, headings, run inline, hyperlink, liste annidate, tabelle con colspan/rowspan, immagini embedded, footnote/endnote, comments, simboli speciali, complex field hyperlink, checkbox SDT/FORMCHECKBOX) la libreria è **funzionalmente equivalente a mammoth.js** -- più sicura, perché chiude tre vettori di attacco (XXE, javascript: hyperlink, r:link images) che mammoth lascia aperti. Quello che segue è il delta residuo, ordinato per dominio.
 
 ## Reader: feature mammoth-supportate ancora mancanti
 
@@ -21,9 +21,14 @@ Per documenti reali (paragrafi, headings, run inline, hyperlink, liste annidate,
 
 ## API pubblica mammoth non ancora esposta
 
-- `transforms` module — utility per walk/replace nel tree (`transforms.elementsOfType`, ecc.). `transformDocument` esposto, ma senza helper `transforms.*` l'utente deve scrivere a mano il walking.
 - `underline` module — custom underline mappers.
 - CLI `--style-map FILE` per caricare regole da file di testo esterno.
+
+## Differenze deliberate rispetto a mammoth (sicurezza)
+
+- **`r:link` images non vengono caricate.** mammoth chiama `fs.readFile` sul target della relationship, esponendo SSRF/LFI/phar deserialization quando il docx è user-provided. Noi rifiutiamo di leggere e lasciamo il path sul nodo Image perché un eventuale `transformDocument` possa gestirlo a parte.
+- **Hyperlink con scheme `javascript:` / `vbscript:` / `data:` perdono il wrapper `<a>`.** mammoth li forwarda verbatim; noi li trattiamo come payload XSS.
+- **DOCTYPE rifiutato in XML parsing.** Combinato con `LIBXML_NONET`, chiude XXE e billion-laughs. OOXML non dichiara mai un DOCTYPE.
 
 ## Decisioni di design intenzionali (NON da "fixare")
 
