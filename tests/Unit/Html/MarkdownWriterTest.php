@@ -66,6 +66,33 @@ it('drops a wrapper that contained only whitespace, leaving an empty paragraph',
     expect(MarkdownWriter::write([$node]))->toBe("\n\n");
 });
 
+it('hoists a leading <br> out of <strong> so the ** opener is adjacent to text', function (): void {
+    // Word inserts <w:br/> at the start of a bold run when there is a soft
+    // line break before the bold text. The void <br> expands to "  \n"
+    // (pure whitespace) and would sit between ** and the first letter,
+    // which CommonMark treats as a non-opener -- the bold never closes.
+    $node = el('p', children: [
+        el('strong', children: [el('br'), txt('Maria Elena Canzoni ')]),
+        txt('trascrizione avviata'),
+    ]);
+
+    // The hoisted "  \n" leaves leading spaces at line start, which the
+    // line-leading-whitespace strip then removes, leaving a blank line
+    // before the bold paragraph -- harmless paragraph separation.
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("\n**Maria Elena Canzoni** trascrizione avviata\n\n");
+});
+
+it('hoists a trailing <br> out of <strong> so the ** closer is adjacent to text', function (): void {
+    $node = el('p', children: [
+        el('strong', children: [txt('Maria Elena Canzoni'), el('br')]),
+        txt('trascrizione avviata'),
+    ]);
+
+    expect(MarkdownWriter::write([$node]))
+        ->toBe("**Maria Elena Canzoni**  \ntrascrizione avviata\n\n");
+});
+
 it('hoists whitespace through nested emphasis recursively then strips at line start', function (): void {
     // <strong>  <em>  hi  </em>  </strong>
     $node = el('p', children: [

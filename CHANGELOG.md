@@ -11,6 +11,20 @@ Tracked in `ROADMAP.md`. Highlights still pending: DSL list
 matchers (`p:unordered-list(N)`); custom `underline` mappers; CLI
 `--style-map FILE`; track-changes deletion concatenation.
 
+## [0.3.1] — 2026-04-28
+
+### Fixed
+
+- **Markdown emphasis broken by leading/trailing `<br>`**: a soft
+  line break at the very start or end of a `<strong>`/`<em>` (and
+  other emphasis) wrapper was emitted as `"  \n"` *inside* the
+  delimiters, e.g. `**  \nName**`, which CommonMark refuses to
+  parse as emphasis (the opener requires non-whitespace adjacent
+  to the marker). The whitespace-hoisting pass now also pulls
+  leading and trailing `<br>` elements out of emphasis wrappers,
+  so the markers stay flush against text and the line break is
+  preserved as a hard break outside the wrapper.
+
 ## [0.3.0] — 2026-04-28
 
 Public API expansion to bring elephant-php to feature parity with

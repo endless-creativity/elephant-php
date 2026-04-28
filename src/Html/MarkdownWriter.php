@@ -106,8 +106,23 @@ final class MarkdownWriter
         }
 
         $leading = '';
-        while ($children !== [] && $children[0] instanceof Text) {
-            $value = $children[0]->value;
+        while ($children !== []) {
+            $first = $children[0];
+            // <br> is void and expands to "  \n" (pure whitespace) in the
+            // markdown writer, so a <br> at the leading edge of an emphasis
+            // wrapper would push the content away from the opening marker
+            // and CommonMark would refuse to open emphasis. Hoist it as if
+            // it were a Text("  \n") node.
+            if ($first instanceof Element && $first->tag->tagName === 'br') {
+                $leading .= "  \n";
+                array_shift($children);
+
+                continue;
+            }
+            if (! $first instanceof Text) {
+                break;
+            }
+            $value = $first->value;
             if (preg_match('/^(\s+)(.*)$/s', $value, $m) !== 1) {
                 break;
             }
@@ -125,6 +140,12 @@ final class MarkdownWriter
         while ($children !== []) {
             $lastIndex = count($children) - 1;
             $last = $children[$lastIndex];
+            if ($last instanceof Element && $last->tag->tagName === 'br') {
+                $trailing = "  \n".$trailing;
+                array_pop($children);
+
+                continue;
+            }
             if (! $last instanceof Text) {
                 break;
             }
