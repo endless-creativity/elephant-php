@@ -149,3 +149,42 @@ it('clears the transient vMerge field after row-span resolution', function (): v
 
     expect(cellsOf(rowsOf(readTable($tableXml))[0])[0]->vMerge)->toBeNull();
 });
+
+it('merges a vMerge continue into the cell directly above even when that cell was not a restart', function (): void {
+    // Word's vMerge resolution is column-position-based: a continue cell
+    // in row N at column C joins the cell in row N-1 at column C
+    // regardless of whether that cell was declared as a restart. The
+    // orphan continue ends up dropped, the cell above gains rowSpan=2.
+    // (Same as mammoth: simpler than tracking explicit anchors and
+    // matches how Word visually renders these malformed tables.)
+    $tableXml = new Element(name: 'w:tbl', children: [
+        new Element(name: 'w:tr', children: [tableCellXml()]),
+        new Element(name: 'w:tr', children: [
+            tableCellXml(properties: [new Element(name: 'w:vMerge')]),
+        ]),
+    ]);
+
+    $rows = rowsOf(readTable($tableXml));
+    expect($rows)->toHaveCount(2);
+    expect(cellsOf($rows[0]))->toHaveCount(1);
+    expect(cellsOf($rows[0])[0]->rowSpan)->toBe(2);
+    expect(cellsOf($rows[1]))->toHaveCount(0);
+});
+
+it('leaves a lone vMerge restart with rowSpan=1 when no continue follows it in any row below', function (): void {
+    // Row 0: cell A, cell B (declared as vMerge restart)
+    // Row 1: nothing in column 1.
+    // The restart never gets a partner; its rowSpan stays at 1.
+    $tableXml = new Element(name: 'w:tbl', children: [
+        new Element(name: 'w:tr', children: [
+            tableCellXml(),
+            tableCellXml(properties: [new Element(name: 'w:vMerge', attributes: ['w:val' => 'restart'])]),
+        ]),
+        new Element(name: 'w:tr', children: [tableCellXml()]),
+    ]);
+
+    $rows = rowsOf(readTable($tableXml));
+    expect($rows)->toHaveCount(2);
+    expect(cellsOf($rows[0])[1]->rowSpan)->toBe(1);
+    expect(cellsOf($rows[1]))->toHaveCount(1);
+});

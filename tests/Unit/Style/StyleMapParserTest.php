@@ -125,3 +125,66 @@ it('leaves separator null when the modifier is absent', function (): void {
 
     expect($mapping->to->elements[0]->separator)->toBeNull();
 });
+
+it('combines multiple `.class` modifiers on the same path element with spaces', function (): void {
+    $mapping = StyleMapParser::parse("p[style-name='Note'] => div.note.aside");
+
+    expect($mapping->to->elements[0]->attributes['class'])->toBe('note aside');
+});
+
+it('keeps multiple `[attr=...]` modifiers on the same path element', function (): void {
+    $mapping = StyleMapParser::parse("p[style-name='Img'] => img[alt='x'][src='y']");
+
+    expect($mapping->to->elements[0]->attributes)->toBe(['alt' => 'x', 'src' => 'y']);
+});
+
+it('mixes class, attribute, fresh and separator modifiers in one element', function (): void {
+    $mapping = StyleMapParser::parse(
+        "p[style-name='Note'] => div.note[role='aside']:fresh:separator(' / ')"
+    );
+
+    $element = $mapping->to->elements[0];
+    expect($element->attributes)->toBe(['class' => 'note', 'role' => 'aside']);
+    expect($element->fresh)->toBeTrue();
+    expect($element->separator)->toBe(' / ');
+});
+
+it('tolerates whitespace around the => arrow and the > element separator', function (): void {
+    $mapping = StyleMapParser::parse('  p.Heading1   =>   div   >   h1:fresh  ');
+
+    expect($mapping->from->styleId)->toBe('Heading1');
+    expect($mapping->to->elements)->toHaveCount(2);
+    expect($mapping->to->elements[1]->tagName)->toBe('h1');
+});
+
+it('reports the position of an unterminated string in the error message', function (): void {
+    try {
+        StyleMapParser::parse("p[style-name='Heading => h1");
+    } catch (InvalidArgumentException $e) {
+        // The opening quote is at index 13; the message should pin that.
+        expect($e->getMessage())->toContain('position 13');
+
+        return;
+    }
+    throw new RuntimeException('Expected InvalidArgumentException, none thrown');
+});
+
+it('reports the position of an unexpected character', function (): void {
+    try {
+        StyleMapParser::parse('p?Heading1 => h1');
+    } catch (InvalidArgumentException $e) {
+        // `?` at index 1.
+        expect($e->getMessage())->toContain('position 1');
+
+        return;
+    }
+    throw new RuntimeException('Expected InvalidArgumentException, none thrown');
+});
+
+it('throws when :separator is used without an argument', function (): void {
+    StyleMapParser::parse('p => p:separator');
+})->throws(InvalidArgumentException::class);
+
+it('throws when :separator argument is not a quoted string', function (): void {
+    StyleMapParser::parse('p => p:separator(foo)');
+})->throws(InvalidArgumentException::class);

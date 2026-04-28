@@ -106,3 +106,85 @@ it('ignores numbering styles that do not declare a numId', function (): void {
 
     expect($styles->findNumberingStyleNumIdById('Empty'))->toBeNull();
 });
+
+it('skips a style without w:type silently', function (): void {
+    // mammoth ignores anonymous-type styles, we should too rather than
+    // crash. Common in malformed exports.
+    $styles = StylesReader::readFromXml(stylesXml(new Element(
+        name: 'w:style',
+        attributes: ['w:styleId' => 'NoType'],
+    )));
+
+    expect($styles->findParagraphStyleById('NoType'))->toBeNull();
+});
+
+it('skips a style without w:styleId silently', function (): void {
+    $styles = StylesReader::readFromXml(stylesXml(new Element(
+        name: 'w:style',
+        attributes: ['w:type' => 'paragraph'],
+    )));
+
+    // No styleId means nothing to look up by; assertion is just that the
+    // reader didn't throw.
+    expect($styles->findParagraphStyleById(''))->toBeNull();
+});
+
+it('skips an unknown style type without crashing', function (): void {
+    // ECMA-376 only defines paragraph, character, table, numbering. Real
+    // docs sometimes carry custom values from third-party tools; we silent
+    // skip them just like mammoth.
+    $styles = StylesReader::readFromXml(stylesXml(
+        styleElement(type: 'paragraph', id: 'Body', name: 'Body Text'),
+        new Element(
+            name: 'w:style',
+            attributes: ['w:type' => 'list', 'w:styleId' => 'CustomList'],
+        ),
+    ));
+
+    expect($styles->findParagraphStyleById('Body')?->name)->toBe('Body Text');
+});
+
+it('does not crash on a style declaring w:basedOn (we simply ignore the chain)', function (): void {
+    // mammoth documents that basedOn is unresolved; ours matches that.
+    // The point of this test is that the parser tolerates the element and
+    // still reads the style's own id / name.
+    $styles = StylesReader::readFromXml(stylesXml(new Element(
+        name: 'w:style',
+        attributes: ['w:type' => 'paragraph', 'w:styleId' => 'Heading2'],
+        children: [
+            new Element(name: 'w:name', attributes: ['w:val' => 'Heading 2']),
+            new Element(name: 'w:basedOn', attributes: ['w:val' => 'Heading1']),
+        ],
+    )));
+
+    expect($styles->findParagraphStyleById('Heading2')?->name)->toBe('Heading 2');
+});
+
+it('keeps the first numbering style when the same styleId is repeated', function (): void {
+    $styles = StylesReader::readFromXml(stylesXml(
+        new Element(
+            name: 'w:style',
+            attributes: ['w:type' => 'numbering', 'w:styleId' => 'MyList'],
+            children: [
+                new Element(name: 'w:pPr', children: [
+                    new Element(name: 'w:numPr', children: [
+                        new Element(name: 'w:numId', attributes: ['w:val' => '1']),
+                    ]),
+                ]),
+            ],
+        ),
+        new Element(
+            name: 'w:style',
+            attributes: ['w:type' => 'numbering', 'w:styleId' => 'MyList'],
+            children: [
+                new Element(name: 'w:pPr', children: [
+                    new Element(name: 'w:numPr', children: [
+                        new Element(name: 'w:numId', attributes: ['w:val' => '99']),
+                    ]),
+                ]),
+            ],
+        ),
+    ));
+
+    expect($styles->findNumberingStyleNumIdById('MyList'))->toBe('1');
+});
