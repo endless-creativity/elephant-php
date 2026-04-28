@@ -24,7 +24,13 @@ final class XmlReader
 
         $previous = libxml_use_internal_errors(true);
         libxml_clear_errors();
-        $loaded = $document->loadXML($xml);
+        // LIBXML_NONET blocks any network access libxml might try to do
+        // for entity resolution. PHP 8 defaults to disabling external
+        // entity loading anyway, but the explicit flag is documented and
+        // doesn't rely on the default. Pair with the DOCTYPE rejection
+        // below to neutralise XXE / billion-laughs attacks: an attacker
+        // can't get the parser to dereference an entity it never reads.
+        $loaded = $document->loadXML($xml, LIBXML_NONET);
         $errors = libxml_get_errors();
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
@@ -32,6 +38,13 @@ final class XmlReader
         if (! $loaded || $errors !== []) {
             $message = $errors === [] ? 'Malformed XML' : trim($errors[0]->message);
             throw new RuntimeException("Could not parse XML: {$message}");
+        }
+
+        // OOXML never declares a DOCTYPE: rejecting any document that
+        // does so denies the XXE / billion-laughs attack surface
+        // entirely. Real Word/LibreOffice exports omit the doctype.
+        if ($document->doctype !== null) {
+            throw new RuntimeException('Could not parse XML: DOCTYPE declarations are not allowed');
         }
 
         $root = $document->documentElement;

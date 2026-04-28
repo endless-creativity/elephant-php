@@ -141,9 +141,14 @@ it('wraps the image in a Hyperlink when wp:docPr/a:hlinkClick has r:id', functio
         ->toBeInstanceOf(Image::class);
 });
 
-it('reads r:link as an external image whose bytes come from disk', function (): void {
+it('refuses to read r:link bytes for security reasons (no SSRF/LFI/phar)', function (): void {
+    // r:link points outside the docx zip and the target is attacker-
+    // controlled in any user-uploaded scenario. Mammoth's `fs.readFile`
+    // approach exposes SSRF (http://internal/...), LFI (file:///etc/...),
+    // and phar:// deserialisation. We refuse to load and let the caller
+    // decide what to do via the path on the Image node.
     $tmp = (string) tempnam(sys_get_temp_dir(), 'elephant-img-');
-    file_put_contents($tmp, 'EXTERNAL');
+    file_put_contents($tmp, 'SHOULD-NOT-BE-READ');
 
     $relationships = new Relationships([
         new Relationship(relationshipId: 'rId9', target: $tmp, type: IMAGE_REL_TYPE),
@@ -168,7 +173,11 @@ it('reads r:link as an external image whose bytes come from disk', function (): 
 
     $image = $result->value;
     expect($image)->toBeInstanceOf(Image::class);
-    expect($image instanceof Image ? ($image->readBytes)() : null)->toBe('EXTERNAL');
+    // The path is preserved on the Image so a transformDocument hook can
+    // make its own decision; the readBytes closure refuses outright.
+    assert($image instanceof Image);
+    expect(fn () => ($image->readBytes)())
+        ->toThrow(RuntimeException::class, 'Linked images (r:link) are not loaded');
 
     @unlink($tmp);
 });

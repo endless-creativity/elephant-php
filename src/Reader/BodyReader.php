@@ -556,18 +556,22 @@ final class BodyReader
                 return null;
             }
 
-            // r:link points at a path on disk relative to (or absolute
-            // from) the docx host. We try to read it directly; if the
-            // file isn't available the closure throws when invoked, and
-            // DocumentConverter records that as a Message::error and
-            // drops the image (mammoth's recoveringConvertImage).
+            // r:link points at an external path/URL outside the docx zip.
+            // Mammoth resolves it via `fs.readFile`; we deliberately do
+            // NOT, because the path is attacker-controlled in any
+            // user-uploaded docx scenario. A naive fetcher exposes:
+            //   - SSRF (http://internal-service/...)
+            //   - LFI  (file:///etc/passwd)
+            //   - phar deserialisation (phar://...)
+            //   - arbitrary file reads via `..` traversal.
+            // The image is dropped instead, with the path preserved on
+            // the Image node so downstream code (e.g. a custom
+            // ImageHandler hooked through transformDocument) can decide
+            // whether and how to fetch it.
             return [$target, static function () use ($target): string {
-                $bytes = @file_get_contents($target);
-                if ($bytes === false) {
-                    throw new \RuntimeException("Could not read linked image at {$target}");
-                }
-
-                return $bytes;
+                throw new \RuntimeException(
+                    "Linked images (r:link) are not loaded for security reasons; refusing to read \"{$target}\"",
+                );
             }];
         }
 

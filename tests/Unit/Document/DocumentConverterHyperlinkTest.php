@@ -64,3 +64,70 @@ it('unwraps a hyperlink with no href and no anchor', function (): void {
 
     expect(convertWithHyperlink($hyperlink))->toBe('<p>plain</p>');
 });
+
+it('strips the <a> wrapper when the href is a javascript: URL (XSS guard)', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'click')])],
+        href: 'javascript:alert(1)',
+    );
+
+    expect(convertWithHyperlink($hyperlink))->toBe('<p>click</p>');
+});
+
+it('strips the <a> wrapper when the href is a data: URL', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'click')])],
+        href: 'data:text/html,<script>alert(1)</script>',
+    );
+
+    expect(convertWithHyperlink($hyperlink))->toBe('<p>click</p>');
+});
+
+it('strips the <a> wrapper when the href is vbscript:', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'click')])],
+        href: 'vbscript:msgbox 1',
+    );
+
+    expect(convertWithHyperlink($hyperlink))->toBe('<p>click</p>');
+});
+
+it('matches dangerous schemes case-insensitively', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'click')])],
+        href: 'JaVaScRiPt:alert(1)',
+    );
+
+    expect(convertWithHyperlink($hyperlink))->toBe('<p>click</p>');
+});
+
+it('strips the <a> wrapper when leading whitespace / control chars hide the scheme', function (): void {
+    // Browsers historically tolerate `\tjavascript:` / leading control
+    // characters before the scheme. The filter ignores them too.
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'click')])],
+        href: "  \tjavascript:alert(1)",
+    );
+
+    expect(convertWithHyperlink($hyperlink))->toBe('<p>click</p>');
+});
+
+it('keeps mailto: links untouched (not a script scheme)', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'mail')])],
+        href: 'mailto:foo@example.com',
+    );
+
+    expect(convertWithHyperlink($hyperlink))
+        ->toBe('<p><a href="mailto:foo@example.com">mail</a></p>');
+});
+
+it('keeps https: links untouched', function (): void {
+    $hyperlink = new Hyperlink(
+        children: [new Run(children: [new Text(value: 'docs')])],
+        href: 'https://example.com/',
+    );
+
+    expect(convertWithHyperlink($hyperlink))
+        ->toBe('<p><a href="https://example.com/">docs</a></p>');
+});

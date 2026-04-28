@@ -40,3 +40,23 @@ it('captures text content as Text nodes', function (): void {
 it('throws on malformed xml', function (): void {
     XmlReader::readString('<not><closed>');
 })->throws(RuntimeException::class);
+
+it('refuses XML with a DOCTYPE declaration (XXE / billion-laughs guard)', function (): void {
+    // Real OOXML never has a DOCTYPE; rejecting any document that does
+    // closes the door on entity-expansion and external-entity attacks.
+    $payload = '<?xml version="1.0"?>'
+        ."\n".'<!DOCTYPE root [<!ENTITY x "lol">]>'
+        ."\n".'<root>&x;</root>';
+
+    expect(fn () => XmlReader::readString($payload))
+        ->toThrow(RuntimeException::class, 'DOCTYPE declarations are not allowed');
+});
+
+it('refuses an external entity declaration even when it points to a local file', function (): void {
+    $payload = '<?xml version="1.0"?>'
+        ."\n".'<!DOCTYPE root [<!ENTITY x SYSTEM "file:///etc/passwd">]>'
+        ."\n".'<root>&x;</root>';
+
+    expect(fn () => XmlReader::readString($payload))
+        ->toThrow(RuntimeException::class, 'DOCTYPE declarations are not allowed');
+});

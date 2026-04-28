@@ -531,6 +531,14 @@ final class DocumentConverter
         }
 
         $href = $hyperlink->anchor !== null ? '#'.$hyperlink->anchor : ($hyperlink->href ?? '');
+        if (self::isUnsafeUrlScheme($href)) {
+            // Drop the link entirely; render the children inline. Mammoth
+            // doesn't filter, but a docx that points at `javascript:` /
+            // `vbscript:` / `data:text/html` is a payload, not a useful
+            // hyperlink, and the cost of stripping it is just one
+            // unwrapped run.
+            return $children;
+        }
         $attributes = ['href' => $href];
         if ($hyperlink->targetFrame !== null) {
             $attributes['target'] = $hyperlink->targetFrame;
@@ -540,6 +548,25 @@ final class DocumentConverter
             tag: new Tag(tagName: 'a', attributes: $attributes, fresh: false),
             children: $children,
         )];
+    }
+
+    /**
+     * Returns true for URL schemes that can execute script if loaded by a
+     * browser. The check is case-insensitive and tolerant of leading
+     * whitespace / control characters because attackers commonly use
+     * `\tjavascript:` or `JaVaScRiPt:` to bypass naive filters.
+     */
+    private static function isUnsafeUrlScheme(string $href): bool
+    {
+        $trimmed = ltrim($href);
+        // Strip ASCII control characters that browsers ignore inside the
+        // URL scheme (HTML spec § 13.2.6.4 token cleanup).
+        $cleaned = (string) preg_replace('/[\x00-\x1F\x7F]/', '', $trimmed);
+        $lower = strtolower($cleaned);
+
+        return str_starts_with($lower, 'javascript:')
+            || str_starts_with($lower, 'vbscript:')
+            || str_starts_with($lower, 'data:');
     }
 
     /**
