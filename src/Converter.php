@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace EndlessCreativity\ElephantPhp;
 
+use Closure;
 use EndlessCreativity\ElephantPhp\Document\Comments;
+use EndlessCreativity\ElephantPhp\Document\Document;
 use EndlessCreativity\ElephantPhp\Document\DocumentConverter;
 use EndlessCreativity\ElephantPhp\Document\Notes;
 use EndlessCreativity\ElephantPhp\Document\NoteType;
@@ -30,6 +32,7 @@ use EndlessCreativity\ElephantPhp\Reader\Xml\XmlReader;
 use EndlessCreativity\ElephantPhp\Reader\ZipFile;
 use EndlessCreativity\ElephantPhp\Style\StyleMap;
 use EndlessCreativity\ElephantPhp\Style\StyleMapParser;
+use InvalidArgumentException;
 
 final class Converter
 {
@@ -85,6 +88,13 @@ final class Converter
         // for block elements. Affects only `convertToHtml`; ignored by
         // Markdown and raw-text conversion.
         private readonly bool $prettyPrint = false,
+        // Optional callback that receives the parsed `Document` and
+        // returns a (typically modified) `Document` to convert in its
+        // place. Mirrors mammoth's `transformDocument` hook -- useful
+        // for stripping comments, rewriting hyperlinks, normalising
+        // images etc. without forking the converter. Document is
+        // immutable, so the callback must produce a new instance.
+        private readonly ?Closure $transformDocument = null,
     ) {
         $base = StyleMap::default();
         $this->styleMap = $styleMap === null
@@ -244,6 +254,18 @@ final class Converter
         $documentResult = (new DocumentXmlReader($bodyReader, $notes, $comments))
             ->convertXmlToDocument($documentElement);
 
+        $document = $documentResult->value;
+        if ($this->transformDocument !== null) {
+            $transformed = ($this->transformDocument)($document);
+            if (! $transformed instanceof Document) {
+                throw new InvalidArgumentException(
+                    'transformDocument callback must return a Document instance, got '
+                    .get_debug_type($transformed),
+                );
+            }
+            $document = $transformed;
+        }
+
         $converter = new DocumentConverter(
             styleMap: $this->styleMap,
             imageHandler: $this->imageHandler,
@@ -251,7 +273,7 @@ final class Converter
             ignoreEmptyParagraphs: $this->ignoreEmptyParagraphs,
             prettyPrint: $this->prettyPrint,
         );
-        $htmlResult = $write($converter, $documentResult->value);
+        $htmlResult = $write($converter, $document);
 
         return new Result(
             value: $htmlResult->value,
