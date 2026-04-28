@@ -97,3 +97,31 @@ it('parseAll builds a StyleMap from multiple rules', function (): void {
 
     expect($map->mappings)->toHaveCount(2);
 });
+
+it("decodes \\n, \\r, \\t, \\\\ and \\' escape sequences inside a string", function (): void {
+    $mapping = StyleMapParser::parse("p[style-name='line1\\nline2\\tcol\\\\back\\'q'] => p");
+
+    expect($mapping->from->styleName)->toBe("line1\nline2\tcol\\back'q");
+});
+
+it('keeps an unknown backslash escape as the literal two characters', function (): void {
+    // `\x` is not a recognised escape; we leave it alone so the user
+    // sees the unmodified input rather than silently dropping the `\`.
+    $mapping = StyleMapParser::parse("p[style-name='a\\xb'] => p");
+
+    expect($mapping->from->styleName)->toBe('a\\xb');
+});
+
+it("parses :separator('text') on a path element", function (): void {
+    $mapping = StyleMapParser::parse("p[style-name='Quote'] => blockquote > p:separator('\\n\\n')");
+
+    expect($mapping->to->elements)->toHaveCount(2);
+    expect($mapping->to->elements[1]->tagName)->toBe('p');
+    expect($mapping->to->elements[1]->separator)->toBe("\n\n");
+});
+
+it('leaves separator null when the modifier is absent', function (): void {
+    $mapping = StyleMapParser::parse('p.Heading1 => h1:fresh');
+
+    expect($mapping->to->elements[0]->separator)->toBeNull();
+});

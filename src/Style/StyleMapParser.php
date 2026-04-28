@@ -213,6 +213,7 @@ final class StyleMapParser
         $tag = $this->expectType('identifier');
         $attributes = [];
         $fresh = false;
+        $separator = null;
 
         while (true) {
             if ($this->consumeIfType('dot')) {
@@ -242,12 +243,26 @@ final class StyleMapParser
 
                     continue;
                 }
+                if ($next !== null && $next['type'] === 'identifier' && $next['value'] === 'separator') {
+                    $this->position++;
+                    $this->expectType('open-paren');
+                    $value = $this->expectType('string');
+                    $this->expectType('close-paren');
+                    $separator = $value['value'];
+
+                    continue;
+                }
                 $this->position = $checkpoint;
             }
             break;
         }
 
-        return new HtmlPathElement(tagName: $tag['value'], attributes: $attributes, fresh: $fresh);
+        return new HtmlPathElement(
+            tagName: $tag['value'],
+            attributes: $attributes,
+            fresh: $fresh,
+            separator: $separator,
+        );
     }
 
     private function expectEof(): void
@@ -359,6 +374,31 @@ final class StyleMapParser
 
                 continue;
             }
+            if ($ch === '(') {
+                $tokens[] = ['type' => 'open-paren', 'value' => '(', 'position' => $i];
+                $i++;
+
+                continue;
+            }
+            if ($ch === ')') {
+                $tokens[] = ['type' => 'close-paren', 'value' => ')', 'position' => $i];
+                $i++;
+
+                continue;
+            }
+            if (ctype_digit($ch)) {
+                $start = $i;
+                while ($i < $length && ctype_digit($input[$i])) {
+                    $i++;
+                }
+                $tokens[] = [
+                    'type' => 'integer',
+                    'value' => substr($input, $start, $i - $start),
+                    'position' => $start,
+                ];
+
+                continue;
+            }
             if ($ch === '=' && $i + 1 < $length && $input[$i + 1] === '>') {
                 $tokens[] = ['type' => 'arrow', 'value' => '=>', 'position' => $i];
                 $i += 2;
@@ -382,6 +422,23 @@ final class StyleMapParser
                 $i++;
                 $value = '';
                 while ($i < $length && $input[$i] !== "'") {
+                    // Backslash escapes mirror mammoth's: `\n`, `\r`, `\t`,
+                    // `\\`, `\'`. Any other `\x` is left as the literal two
+                    // characters so unknown escapes fail loudly downstream
+                    // rather than silently dropping the backslash.
+                    if ($input[$i] === '\\' && $i + 1 < $length) {
+                        $value .= match ($input[$i + 1]) {
+                            'n' => "\n",
+                            'r' => "\r",
+                            't' => "\t",
+                            '\\' => '\\',
+                            "'" => "'",
+                            default => '\\'.$input[$i + 1],
+                        };
+                        $i += 2;
+
+                        continue;
+                    }
                     $value .= $input[$i];
                     $i++;
                 }

@@ -15,6 +15,10 @@ final readonly class HtmlPathElement
         public string $tagName,
         public array $attributes = [],
         public bool $fresh = false,
+        // Text inserted by the simplifier between two adjacent matching
+        // elements when they get merged. Mammoth's `:separator('text')`
+        // path modifier; null means "no separator".
+        public ?string $separator = null,
     ) {
     }
 }

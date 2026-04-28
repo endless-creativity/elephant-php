@@ -52,6 +52,7 @@ final readonly class HtmlPath
                     tagName: $element->tagName,
                     attributes: $element->attributes,
                     fresh: $element->fresh,
+                    separator: $element->separator,
                 ),
                 children: $result,
             )];
