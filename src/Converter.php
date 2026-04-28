@@ -81,6 +81,10 @@ final class Converter
         // them as `<p></p>` so the document's intentional vertical
         // spacing survives the conversion.
         private readonly bool $ignoreEmptyParagraphs = true,
+        // When true, the HTML writer emits indented multi-line output
+        // for block elements. Affects only `convertToHtml`; ignored by
+        // Markdown and raw-text conversion.
+        private readonly bool $prettyPrint = false,
     ) {
         $base = StyleMap::default();
         $this->styleMap = $styleMap === null
@@ -245,6 +249,7 @@ final class Converter
             imageHandler: $this->imageHandler,
             idPrefix: $this->idPrefix,
             ignoreEmptyParagraphs: $this->ignoreEmptyParagraphs,
+            prettyPrint: $this->prettyPrint,
         );
         $htmlResult = $write($converter, $documentResult->value);
 

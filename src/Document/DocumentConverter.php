@@ -59,6 +59,12 @@ final class DocumentConverter
         // engine renders as a vertical gap. Used when the document's
         // visual whitespace carries meaning (e.g. signature lines).
         private readonly bool $ignoreEmptyParagraphs = true,
+        // When true, the HTML writer emits indented, multi-line output
+        // for block elements (`<div>`, `<p>`, `<ul>`, `<li>`). Useful
+        // for diffs / human inspection; the rendered visual is
+        // identical because browsers collapse the added whitespace
+        // outside of `<pre>`.
+        private readonly bool $prettyPrint = false,
     ) {
         $this->styleMap = $styleMap ?? StyleMap::default();
         $this->comments = new Comments();
@@ -69,7 +75,12 @@ final class DocumentConverter
      */
     public function convertToHtml(Document $document): Result
     {
-        return $this->convertWith($document, HtmlWriter::write(...));
+        $prettyPrint = $this->prettyPrint;
+
+        return $this->convertWith(
+            $document,
+            static fn (array $nodes): string => HtmlWriter::write($nodes, $prettyPrint),
+        );
     }
 
     /**
