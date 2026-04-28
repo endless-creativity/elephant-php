@@ -75,3 +75,34 @@ it('keeps only the first definition when multiple style elements share an id', f
 
     expect($styles->findParagraphStyleById('Heading1')?->name)->toBe('Heading 1');
 });
+
+it('reads <w:style w:type="numbering"> and exposes its numId via findNumberingStyleNumIdById', function (): void {
+    $numberingStyle = new Element(
+        name: 'w:style',
+        attributes: ['w:type' => 'numbering', 'w:styleId' => 'MyListStyle'],
+        children: [
+            new Element(name: 'w:pPr', children: [
+                new Element(name: 'w:numPr', children: [
+                    new Element(name: 'w:numId', attributes: ['w:val' => '7']),
+                ]),
+            ]),
+        ],
+    );
+
+    $styles = StylesReader::readFromXml(stylesXml($numberingStyle));
+
+    expect($styles->findNumberingStyleNumIdById('MyListStyle'))->toBe('7');
+    expect($styles->findNumberingStyleNumIdById('Unknown'))->toBeNull();
+});
+
+it('ignores numbering styles that do not declare a numId', function (): void {
+    $styles = StylesReader::readFromXml(stylesXml(
+        new Element(
+            name: 'w:style',
+            attributes: ['w:type' => 'numbering', 'w:styleId' => 'Empty'],
+            children: [],
+        ),
+    ));
+
+    expect($styles->findNumberingStyleNumIdById('Empty'))->toBeNull();
+});

@@ -17,15 +17,28 @@ use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
 
 final class NumberingReader
 {
-    public static function readFromXml(Element $root): Numbering
+    public static function readFromXml(Element $root, ?Styles $styles = null): Numbering
     {
         $levelsByAbstractNumId = [];
+        $numStyleLinkByAbstractNumId = [];
+        $levelsByParagraphStyleId = [];
         foreach ($root->getElementsByTagName('w:abstractNum') as $abstractNum) {
             $abstractNumId = $abstractNum->attribute('w:abstractNumId');
             if ($abstractNumId === null) {
                 continue;
             }
-            $levelsByAbstractNumId[(int) $abstractNumId] = self::readLevels($abstractNum);
+            $abstractNumIdInt = (int) $abstractNumId;
+            $levels = self::readLevels($abstractNum);
+            $levelsByAbstractNumId[$abstractNumIdInt] = $levels['byIlvl'];
+            foreach ($levels['byParagraphStyleId'] as $styleId => $level) {
+                // First-write-wins: an earlier abstractNum that already
+                // claimed this paragraph style id keeps it.
+                $levelsByParagraphStyleId[$styleId] ??= $level;
+            }
+            $linkStyleId = $abstractNum->first('w:numStyleLink')?->attribute('w:val');
+            if ($linkStyleId !== null) {
+                $numStyleLinkByAbstractNumId[$abstractNumIdInt] = $linkStyleId;
+            }
         }
 
         $abstractNumIdByNumId = [];
@@ -41,15 +54,19 @@ final class NumberingReader
         return new Numbering(
             abstractNumIdByNumId: $abstractNumIdByNumId,
             levelsByAbstractNumId: $levelsByAbstractNumId,
+            numStyleLinkByAbstractNumId: $numStyleLinkByAbstractNumId,
+            levelsByParagraphStyleId: $levelsByParagraphStyleId,
+            styles: $styles,
         );
     }
 
     /**
-     * @return array<int, NumberingLevel>
+     * @return array{byIlvl: array<int, NumberingLevel>, byParagraphStyleId: array<string, NumberingLevel>}
      */
     private static function readLevels(Element $abstractNum): array
     {
-        $levels = [];
+        $byIlvl = [];
+        $byParagraphStyleId = [];
         $levelWithoutIndex = null;
 
         foreach ($abstractNum->getElementsByTagName('w:lvl') as $levelElement) {
@@ -57,6 +74,7 @@ final class NumberingReader
             $numFmt = $levelElement->first('w:numFmt')?->attribute('w:val');
             $isOrdered = $numFmt !== 'bullet';
             $startAttr = $levelElement->first('w:start')?->attribute('w:val');
+            $paragraphStyleId = $levelElement->first('w:pStyle')?->attribute('w:val');
 
             $level = new NumberingLevel(
                 level: (int) ($levelIndex ?? 0),
@@ -67,16 +85,22 @@ final class NumberingReader
             if ($levelIndex === null) {
                 $levelWithoutIndex ??= $level;
             } else {
-                $levels[(int) $levelIndex] = $level;
+                $byIlvl[(int) $levelIndex] = $level;
+            }
+
+            if ($paragraphStyleId !== null) {
+                // Tie this level to the paragraph style it applies to.
+                // First-write-wins for repeats within the same abstractNum.
+                $byParagraphStyleId[$paragraphStyleId] ??= $level;
             }
         }
 
         // Per mammoth: malformed docs may declare a level with no w:ilvl;
         // fall back to level 0 if not already filled.
-        if ($levelWithoutIndex !== null && ! isset($levels[0])) {
-            $levels[0] = $levelWithoutIndex;
+        if ($levelWithoutIndex !== null && ! isset($byIlvl[0])) {
+            $byIlvl[0] = $levelWithoutIndex;
         }
 
-        return $levels;
+        return ['byIlvl' => $byIlvl, 'byParagraphStyleId' => $byParagraphStyleId];
     }
 }

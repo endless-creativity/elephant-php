@@ -20,6 +20,7 @@ final class StylesReader
         $paragraphStyles = [];
         $characterStyles = [];
         $tableStyles = [];
+        $numberingStyleNumIdByStyleId = [];
 
         foreach ($root->getElementsByTagName('w:style') as $styleElement) {
             $type = $styleElement->attribute('w:type');
@@ -27,6 +28,26 @@ final class StylesReader
             if ($type === null || $styleId === null) {
                 continue;
             }
+
+            // Numbering-type styles carry only a numId pointer (in pPr/numPr)
+            // and don't follow the (styleId, name) shape; they exist solely
+            // for `<w:numStyleLink>` indirection in numbering.xml.
+            if ($type === 'numbering') {
+                if (isset($numberingStyleNumIdByStyleId[$styleId])) {
+                    continue;
+                }
+                $numId = $styleElement
+                    ->firstOrEmpty('w:pPr')
+                    ->firstOrEmpty('w:numPr')
+                    ->firstOrEmpty('w:numId')
+                    ->attribute('w:val');
+                if ($numId !== null) {
+                    $numberingStyleNumIdByStyleId[$styleId] = $numId;
+                }
+
+                continue;
+            }
+
             if ($type !== 'paragraph' && $type !== 'character' && $type !== 'table') {
                 continue;
             }
@@ -62,6 +83,7 @@ final class StylesReader
             paragraphStyles: $paragraphStyles,
             characterStyles: $characterStyles,
             tableStyles: $tableStyles,
+            numberingStyleNumIdByStyleId: $numberingStyleNumIdByStyleId,
         );
     }
 }

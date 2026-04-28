@@ -184,10 +184,13 @@ final class Converter
             : Relationships::default();
 
         $numbering = $zip->exists('word/numbering.xml')
-            ? NumberingReader::readFromXml(XmlReader::readString(
-                self::stripUtf8Bom($zip->read('word/numbering.xml')),
-                self::OFFICE_XML_NAMESPACE_MAP,
-            ))
+            ? NumberingReader::readFromXml(
+                XmlReader::readString(
+                    self::stripUtf8Bom($zip->read('word/numbering.xml')),
+                    self::OFFICE_XML_NAMESPACE_MAP,
+                ),
+                $styles,
+            )
             : Numbering::default();
 
         $contentTypes = $zip->exists('[Content_Types].xml')

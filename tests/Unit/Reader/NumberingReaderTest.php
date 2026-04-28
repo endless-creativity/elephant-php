@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use EndlessCreativity\ElephantPhp\Reader\NumberingReader;
+use EndlessCreativity\ElephantPhp\Reader\Styles;
 use EndlessCreativity\ElephantPhp\Reader\Xml\Element;
 
 /**
@@ -137,4 +138,73 @@ it('leaves start null when no <w:start> is declared', function (): void {
     ]));
 
     expect($numbering->findLevel('1', '0')?->start)->toBeNull();
+});
+
+it('chases <w:numStyleLink> through Styles to the linked numId', function (): void {
+    // abstractNum 0 just points at the "MyListStyle" numbering style;
+    // abstractNum 1 holds the actual decimal level. The numbering style's
+    // numId points at numId=2 (which references abstractNum 1). Looking up
+    // numId 1 must transparently resolve to that level.
+    $numbering = NumberingReader::readFromXml(
+        numberingXml([
+            new Element(
+                name: 'w:abstractNum',
+                attributes: ['w:abstractNumId' => '0'],
+                children: [
+                    new Element(name: 'w:numStyleLink', attributes: ['w:val' => 'MyListStyle']),
+                ],
+            ),
+            abstractNumElement(abstractNumId: '1', levels: [
+                ['ilvl' => '0', 'fmt' => 'decimal'],
+            ]),
+            numElement(numId: '1', abstractNumId: '0'),
+            numElement(numId: '2', abstractNumId: '1'),
+        ]),
+        new Styles(numberingStyleNumIdByStyleId: ['MyListStyle' => '2']),
+    );
+
+    expect($numbering->findLevel('1', '0')?->isOrdered)->toBeTrue();
+});
+
+it('returns null for a numStyleLink with no matching numbering style', function (): void {
+    $numbering = NumberingReader::readFromXml(
+        numberingXml([
+            new Element(
+                name: 'w:abstractNum',
+                attributes: ['w:abstractNumId' => '0'],
+                children: [
+                    new Element(name: 'w:numStyleLink', attributes: ['w:val' => 'Missing']),
+                ],
+            ),
+            numElement(numId: '1', abstractNumId: '0'),
+        ]),
+        new Styles(),
+    );
+
+    expect($numbering->findLevel('1', '0'))->toBeNull();
+});
+
+it('exposes a paragraph-style-tied level via findLevelByParagraphStyleId', function (): void {
+    // Level 0 has no <w:pStyle>; level 1 ties itself to "ListLevel2".
+    $numbering = NumberingReader::readFromXml(numberingXml([
+        new Element(
+            name: 'w:abstractNum',
+            attributes: ['w:abstractNumId' => '0'],
+            children: [
+                new Element(name: 'w:lvl', attributes: ['w:ilvl' => '0'], children: [
+                    new Element(name: 'w:numFmt', attributes: ['w:val' => 'decimal']),
+                ]),
+                new Element(name: 'w:lvl', attributes: ['w:ilvl' => '1'], children: [
+                    new Element(name: 'w:numFmt', attributes: ['w:val' => 'decimal']),
+                    new Element(name: 'w:pStyle', attributes: ['w:val' => 'ListLevel2']),
+                ]),
+            ],
+        ),
+        numElement(numId: '1', abstractNumId: '0'),
+    ]));
+
+    $level = $numbering->findLevelByParagraphStyleId('ListLevel2');
+    expect($level?->level)->toBe(1);
+    expect($level?->isOrdered)->toBeTrue();
+    expect($numbering->findLevelByParagraphStyleId('Unknown'))->toBeNull();
 });

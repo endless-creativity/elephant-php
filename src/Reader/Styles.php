@@ -12,11 +12,13 @@ final readonly class Styles
      * @param  array<string, Style>  $paragraphStyles
      * @param  array<string, Style>  $characterStyles
      * @param  array<string, Style>  $tableStyles
+     * @param  array<string, string>  $numberingStyleNumIdByStyleId  Numbering-type style id => numId it points at.
      */
     public function __construct(
         private array $paragraphStyles = [],
         private array $characterStyles = [],
         private array $tableStyles = [],
+        private array $numberingStyleNumIdByStyleId = [],
     ) {
     }
 
@@ -38,5 +40,16 @@ final readonly class Styles
     public function findTableStyleById(string $styleId): ?Style
     {
         return $this->tableStyles[$styleId] ?? null;
+    }
+
+    /**
+     * Returns the `<w:numId>` declared inside a `<w:style w:type="numbering">`
+     * element, or null if the styleId doesn't match a numbering style. Used
+     * by `Numbering::findLevel` to chase `<w:numStyleLink>` indirections from
+     * one abstractNum to the numId held on a numbering style.
+     */
+    public function findNumberingStyleNumIdById(string $styleId): ?string
+    {
+        return $this->numberingStyleNumIdByStyleId[$styleId] ?? null;
     }
 }

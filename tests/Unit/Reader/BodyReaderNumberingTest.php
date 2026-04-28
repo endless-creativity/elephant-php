@@ -79,3 +79,33 @@ it('returns null numbering for a paragraph that has no numPr', function (): void
 
     expect($paragraph->numbering)->toBeNull();
 });
+
+it('falls back to findLevelByParagraphStyleId when the paragraph has only a styleId', function (): void {
+    // Numbering definition ties level 0 to paragraph style "ListLevel1".
+    // The paragraph itself carries only `<w:pStyle val="ListLevel1"/>` --
+    // no `<w:numPr>` of its own -- and inherits the level transparently.
+    $numbering = NumberingReader::readFromXml(numberingXml([
+        new Element(
+            name: 'w:abstractNum',
+            attributes: ['w:abstractNumId' => '0'],
+            children: [
+                new Element(name: 'w:lvl', attributes: ['w:ilvl' => '0'], children: [
+                    new Element(name: 'w:numFmt', attributes: ['w:val' => 'decimal']),
+                    new Element(name: 'w:pStyle', attributes: ['w:val' => 'ListLevel1']),
+                ]),
+            ],
+        ),
+        numElement(numId: '1', abstractNumId: '0'),
+    ]));
+
+    $paragraphElement = new Element(name: 'w:p', children: [
+        new Element(name: 'w:pPr', children: [
+            new Element(name: 'w:pStyle', attributes: ['w:val' => 'ListLevel1']),
+        ]),
+    ]);
+
+    $paragraph = readParagraph($paragraphElement, $numbering);
+
+    expect($paragraph->numbering?->level)->toBe(0);
+    expect($paragraph->numbering?->isOrdered)->toBeTrue();
+});

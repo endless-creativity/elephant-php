@@ -181,23 +181,43 @@ final class BodyReader
                 children: $childrenResult->value,
                 styleId: $styleResult->value['styleId'],
                 styleName: $styleResult->value['styleName'],
-                numbering: $this->readNumbering($properties->firstOrEmpty('w:numPr')),
+                numbering: $this->readNumbering(
+                    $properties->firstOrEmpty('w:numPr'),
+                    $styleResult->value['styleId'],
+                ),
             ),
             messages: array_merge($childrenResult->messages, $styleResult->messages),
         );
     }
 
-    private function readNumbering(Element $numPr): ?NumberingLevel
+    private function readNumbering(Element $numPr, ?string $paragraphStyleId): ?NumberingLevel
     {
         $numId = $numPr->first('w:numId')?->attribute('w:val');
         $ilvl = $numPr->first('w:ilvl')?->attribute('w:val');
-        if ($numId === null) {
-            return null;
+
+        if ($numId !== null && $ilvl !== null) {
+            return $this->numbering->findLevel($numId, $ilvl);
+        }
+
+        // Mammoth: when the paragraph references a style that the numbering
+        // definition tied to a specific level (via `<w:lvl><w:pStyle>`), use
+        // that. Takes precedence over the malformed-doc level-0 fallback so
+        // a doc that legitimately uses style-driven numbering picks the
+        // intended level rather than always 0.
+        if ($paragraphStyleId !== null) {
+            $levelByStyleId = $this->numbering->findLevelByParagraphStyleId($paragraphStyleId);
+            if ($levelByStyleId !== null) {
+                return $levelByStyleId;
+            }
         }
 
         // Per mammoth: malformed docs may omit w:ilvl while still
         // referencing a numId, in which case we assume level 0.
-        return $this->numbering->findLevel($numId, $ilvl ?? '0');
+        if ($numId !== null) {
+            return $this->numbering->findLevel($numId, '0');
+        }
+
+        return null;
     }
 
     /**
