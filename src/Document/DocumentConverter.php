@@ -338,6 +338,21 @@ final class DocumentConverter
             return $this->convertBreak($node);
         }
 
+        if ($node instanceof Checkbox) {
+            $attributes = ['type' => 'checkbox'];
+            if ($node->checked) {
+                // Mammoth emits the verbose form `checked="checked"` rather
+                // than the HTML5 boolean shortcut, so XML-strict parsers
+                // accept the output.
+                $attributes['checked'] = 'checked';
+            }
+
+            return [new HtmlElement(
+                tag: new Tag(tagName: 'input', attributes: $attributes, fresh: true),
+                children: [],
+            )];
+        }
+
         if ($node instanceof BookmarkStart) {
             return [new HtmlElement(
                 tag: new Tag(tagName: 'a', attributes: ['id' => $this->idPrefix.$node->name], fresh: true),

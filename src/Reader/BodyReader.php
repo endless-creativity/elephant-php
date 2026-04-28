@@ -10,6 +10,7 @@ use Closure;
 use EndlessCreativity\ElephantPhp\Document\BookmarkStart;
 use EndlessCreativity\ElephantPhp\Document\BreakElement;
 use EndlessCreativity\ElephantPhp\Document\BreakType;
+use EndlessCreativity\ElephantPhp\Document\Checkbox;
 use EndlessCreativity\ElephantPhp\Document\CommentReference;
 use EndlessCreativity\ElephantPhp\Document\Hyperlink;
 use EndlessCreativity\ElephantPhp\Document\Image;
@@ -88,7 +89,7 @@ final class BodyReader
      * so a single BodyReader can be reused across the four reads in
      * Converter::convert without leakage.
      *
-     * @var list<array{type: string, fldChar?: Element, options?: array{href?: string, anchor?: string}}>
+     * @var list<array{type: string, fldChar?: Element, options?: array{href?: string, anchor?: string}, checked?: bool}>
      */
     private array $complexFieldStack = [];
 
@@ -145,13 +146,12 @@ final class BodyReader
             if (! $node instanceof Element) {
                 continue;
             }
-            // Content controls (Word's structured document tags) are
-            // transparent: emit just the contents of <w:sdtContent> as if
-            // they were siblings of the surrounding scope. Matches
-            // mammoth's "w:sdt" handler when no checkbox is present (the
-            // checkbox case is TODO).
+            // Content controls (Word's structured document tags). When
+            // they declare a `<wordml:checkbox>` they become a Checkbox
+            // node; otherwise they are transparent and we emit the
+            // sdtContent children as siblings of the surrounding scope.
             if ($node->name === 'w:sdt') {
-                $perElement[] = $this->readXmlElements($node->firstOrEmpty('w:sdtContent')->children);
+                $perElement[] = $this->readSdt($node);
 
                 continue;
             }
@@ -218,6 +218,95 @@ final class BodyReader
         }
 
         return null;
+    }
+
+    /**
+     * Reads a `<w:sdt>` (structured document tag / content control). When
+     * the tag declares `<wordml:checkbox>` we promote it to a Checkbox node;
+     * otherwise the tag is transparent and we just emit its sdtContent
+     * children. Mirrors mammoth's `w:sdt` handler — including the trick of
+     * replacing the first non-empty Text descendant with the Checkbox so the
+     * surrounding paragraph keeps the rest of its run intact (the WordML
+     * spec says SDT content must be a single character + optional deleted
+     * one, but real docs often pad with formatting runs).
+     *
+     * @return Result<list<DocumentNode>>
+     */
+    private function readSdt(Element $element): Result
+    {
+        $contentResult = $this->readXmlElements($element->firstOrEmpty('w:sdtContent')->children);
+
+        $checkbox = $element->firstOrEmpty('w:sdtPr')->first('wordml:checkbox');
+        if ($checkbox === null) {
+            return $contentResult;
+        }
+
+        $checkedElement = $checkbox->first('wordml:checked');
+        $checked = $checkedElement !== null
+            && self::readBooleanAttributeValue($checkedElement->attribute('wordml:val'));
+        $documentCheckbox = new Checkbox(checked: $checked);
+
+        $replaced = self::replaceFirstText($contentResult->value, $documentCheckbox);
+
+        return new Result(
+            value: $replaced['matched'] ? $replaced['nodes'] : [$documentCheckbox],
+            messages: $contentResult->messages,
+        );
+    }
+
+    /**
+     * Replaces the first Text descendant whose value is non-empty with the
+     * given replacement node, returning the rebuilt list and a flag that
+     * signals whether a substitution actually happened. Walks Run children
+     * recursively so the typical `<w:r><w:t>X</w:t></w:r>` shape inside
+     * sdtContent is handled.
+     *
+     * @param  list<DocumentNode>  $nodes
+     * @return array{nodes: list<DocumentNode>, matched: bool}
+     */
+    private static function replaceFirstText(array $nodes, DocumentNode $replacement): array
+    {
+        $matched = false;
+        $rebuilt = [];
+        foreach ($nodes as $node) {
+            if ($matched) {
+                $rebuilt[] = $node;
+
+                continue;
+            }
+            if ($node instanceof Text && $node->value !== '') {
+                $rebuilt[] = $replacement;
+                $matched = true;
+
+                continue;
+            }
+            if ($node instanceof Run) {
+                $inner = self::replaceFirstText($node->children, $replacement);
+                if ($inner['matched']) {
+                    $rebuilt[] = new Run(
+                        children: $inner['nodes'],
+                        styleId: $node->styleId,
+                        styleName: $node->styleName,
+                        isBold: $node->isBold,
+                        isItalic: $node->isItalic,
+                        isUnderline: $node->isUnderline,
+                        isStrikethrough: $node->isStrikethrough,
+                        isAllCaps: $node->isAllCaps,
+                        isSmallCaps: $node->isSmallCaps,
+                        verticalAlignment: $node->verticalAlignment,
+                        highlight: $node->highlight,
+                        font: $node->font,
+                        fontSize: $node->fontSize,
+                    );
+                    $matched = true;
+
+                    continue;
+                }
+            }
+            $rebuilt[] = $node;
+        }
+
+        return ['nodes' => $rebuilt, 'matched' => $matched];
     }
 
     /**
@@ -671,15 +760,28 @@ final class BodyReader
             $this->complexFieldStack[] = ['type' => 'begin', 'fldChar' => $element];
             $this->currentInstrText = [];
         } elseif ($type === 'end') {
-            // Mammoth pops; we don't currently care what was popped (checkbox
-            // not supported -- TODO).
-            array_pop($this->complexFieldStack);
+            $popped = array_pop($this->complexFieldStack);
+            // If `<w:fldChar w:fldCharType="separate"/>` never fired (some
+            // docs omit it for FORMCHECKBOX), the begin frame is still on
+            // the stack and we parse it now.
+            if ($popped !== null && $popped['type'] === 'begin') {
+                $popped = self::parseInstrText(
+                    implode('', $this->currentInstrText),
+                    $popped['fldChar'] ?? null,
+                );
+            }
+            if ($popped !== null && $popped['type'] === 'checkbox') {
+                return Result::success(new Checkbox(checked: $popped['checked'] ?? false));
+            }
         } elseif ($type === 'separate') {
             // Pop the begin frame and replace it with the parsed instr text
-            // (typically a hyperlink). Subsequent runs see this on the stack
-            // and wrap their children in a Hyperlink.
-            array_pop($this->complexFieldStack);
-            $this->complexFieldStack[] = self::parseInstrText(implode('', $this->currentInstrText));
+            // (typically a hyperlink, sometimes a FORMCHECKBOX). Subsequent
+            // runs see this on the stack and wrap their children accordingly.
+            $popped = array_pop($this->complexFieldStack);
+            $this->complexFieldStack[] = self::parseInstrText(
+                implode('', $this->currentInstrText),
+                $popped['fldChar'] ?? null,
+            );
         }
 
         return Result::success(null);
@@ -696,9 +798,9 @@ final class BodyReader
     }
 
     /**
-     * @return array{type: string, options?: array{href?: string, anchor?: string}}
+     * @return array{type: string, options?: array{href?: string, anchor?: string}, checked?: bool}
      */
-    private static function parseInstrText(string $instrText): array
+    private static function parseInstrText(string $instrText, ?Element $fldChar): array
     {
         // mammoth's regex: HYPERLINK followed by optional "\l " switch (anchor)
         // and either a quoted location or an unquoted token.
@@ -712,7 +814,34 @@ final class BodyReader
             ];
         }
 
+        if (preg_match('/\s*FORMCHECKBOX\s*/', $instrText) === 1) {
+            $checkBox = $fldChar?->firstOrEmpty('w:ffData')?->firstOrEmpty('w:checkBox');
+            $checkedElement = $checkBox?->first('w:checked');
+            // Per ECMA-376 § 17.16.5.10: the form's "current" state lives on
+            // <w:checked>; if absent, the initial state in <w:default> is
+            // used. mammoth applies the same fallback.
+            $stateElement = $checkedElement ?? $checkBox?->first('w:default');
+            $checked = $stateElement !== null && self::readBooleanAttributeValue($stateElement->attribute('w:val'));
+
+            return ['type' => 'checkbox', 'checked' => $checked];
+        }
+
         return ['type' => 'unknown'];
+    }
+
+    /**
+     * Word's boolean attribute convention: empty / missing / "true" / "1" /
+     * "on" all mean true; everything else means false. Mirrors mammoth's
+     * `readBooleanAttributeValue` so SDT and FORMCHECKBOX agree on what
+     * counts as "checked".
+     */
+    private static function readBooleanAttributeValue(?string $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+
+        return $value !== 'false' && $value !== '0';
     }
 
     /**
