@@ -1,36 +1,28 @@
 # Roadmap & Known Gaps
 
-Snapshot at HEAD: **35 commit, 297 test verdi, PHPStan livello 8 clean, Pint pulito.**
-Per documenti reali (paragrafi, headings, run inline, hyperlink, liste annidate, tabelle con colspan/rowspan, immagini embedded e linkate, footnote/endnote, comments, simboli speciali, complex field hyperlink) la libreria è **funzionalmente equivalente a mammoth.js**. Quello che segue è il delta residuo, ordinato per dominio.
+Snapshot at HEAD: **62 commit, 362 test verdi, PHPStan livello 8 clean, Pint pulito.**
+Per documenti reali (paragrafi, headings, run inline, hyperlink, liste annidate, tabelle con colspan/rowspan, immagini embedded e linkate, footnote/endnote, comments, simboli speciali, complex field hyperlink, checkbox SDT/FORMCHECKBOX) la libreria è **funzionalmente equivalente a mammoth.js**. Quello che segue è il delta residuo, ordinato per dominio.
 
 ## Reader: feature mammoth-supportate ancora mancanti
 
 | Mancante | Note |
 |---|---|
-| **Checkbox `w:sdt[wordml:checkbox]`** | passthrough esiste (commit 16) ma non promuove a un `Checkbox` Document node. Manca il modello e il dispatch della form-field detection. |
-| **`FORMCHECKBOX` in complex field** | il dispatcher di `w:fldChar` (commit 31) gestisce solo HYPERLINK. Le caselle di controllo basate su field-code restano non interpretate. |
 | **OMML / equazioni** | mammoth skippa (warning), noi anche — parità. |
 | **SmartArt / drawing canvas / VML shapes** | mammoth skippa, noi anche — parità. |
 | **Track changes (`w:ins`, `w:moveTo`, `w:moveFrom`, `w:cellIns/Del/Merge`)** | mammoth ha gestione parziale (deleted paragraph contents si concatenano col successivo); noi droppiamo silenziosamente. |
-| **`numStyleLink` / `findLevelByParagraphStyleId`** in numbering | numbering ereditato via paragraph style. Raro; mammoth lo gestisce, noi no. |
 
 ## DSL style-map: forme mancanti
 
 | Forma | Stato |
 |---|---|
-| `p:unordered-list(N)` / `p:ordered-list(N)` | non implementato. La nostra rendering liste è imperativa (commit 10/21), non passa per DSL. Funzionalmente equivalente ma non offre l'override via mapping. |
-| `:separator('text')` su path | non implementato. mammoth lo usa per inserire separatori tra elementi mergiati dal Simplifier. |
-| Escape sequences `\n \r \t` nelle stringhe | non implementato. Noi parsiamo le stringhe `'…'` letterali. |
+| `p:unordered-list(N)` / `p:ordered-list(N)` | non implementato. La nostra rendering liste è imperativa (commit 10/21), non passa per DSL. Tokeniser pronto (`(`, `)`, integer); abilitare i matcher richiede di sostituire il dispatch imperativo in `DocumentConverter::convertParagraph`, refactor con basso ROI. |
+| Forma `ul\|ol` (multi-tag in element position) | non implementato a livello DSL. `Tag::matchAlternativeTagNames` esiste già ed è usato dal converter imperativo. |
 | Errori parser come `Result<warning>` | mammoth ritorna `Result(null, [warning(...)])`, noi tiriamo `InvalidArgumentException`. Più rigido, meno tollerante. |
 
 ## API pubblica mammoth non ancora esposta
 
-- `transformDocument(callable)` — callback per trasformare il modello prima della conversione HTML.
-- `transforms` module — utility per walk/replace nel tree (`transforms.elementsOfType`, ecc.).
+- `transforms` module — utility per walk/replace nel tree (`transforms.elementsOfType`, ecc.). `transformDocument` esposto, ma senza helper `transforms.*` l'utente deve scrivere a mano il walking.
 - `underline` module — custom underline mappers.
-- Opzione `idPrefix` per namespaceare gli `id` HTML di bookmark, footnote-ref, comment-ref. Utile quando si embedda l'output in una pagina con altri id.
-- Opzione `prettyPrint` per HTML indentato.
-- Opzione `ignoreEmptyParagraphs` (noi sempre `true`; mammoth permette `false` per preservare paragrafi vuoti tramite `forceWrite`).
 - CLI `--style-map FILE` per caricare regole da file di testo esterno.
 
 ## Decisioni di design intenzionali (NON da "fixare")
