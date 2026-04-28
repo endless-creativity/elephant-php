@@ -1,7 +1,6 @@
 # Roadmap & Known Gaps
 
-Snapshot at HEAD: **66 commits, 400 tests passing, PHPStan level 8 clean,
-Pint clean.** For real-world documents (paragraphs, headings, inline runs,
+For real-world documents (paragraphs, headings, inline runs,
 hyperlinks, nested lists, tables with colspan/rowspan, embedded images,
 foot/endnotes, comments, special symbols, complex-field hyperlinks, SDT
 and FORMCHECKBOX checkboxes) the library is **functionally equivalent to
@@ -29,7 +28,7 @@ mammoth.js**. What follows is the residual delta, grouped by area.
 
 These are **not bugs to fix** — they are intentional choices because
 elephant-php is a server-side library and the docx is typically
-attacker-controlled in our deployments.
+attacker-controlled.
 
 - **`r:link` images are not fetched.** mammoth calls `fs.readFile` on
   the relationship target, exposing SSRF / LFI / phar deserialisation

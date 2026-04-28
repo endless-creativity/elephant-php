@@ -25,19 +25,31 @@
   (embedded as data URIs by default, customisable handler), footnotes
   and endnotes (with backlinks), comments, content controls (`w:sdt`),
   symbol fonts (Wingdings / Webdings / Symbol via dingbat-to-unicode),
-  legacy hyperlink complex fields (`w:fldChar`).
+  legacy hyperlink complex fields (`w:fldChar`), checkbox form fields
+  (SDT `wordml:checkbox` and `FORMCHECKBOX`) rendered as
+  `<input type="checkbox">` in HTML and `[x]` / `[ ]` in Markdown.
 - Mammoth-compatible style-mapping DSL:
   `p[style-name='Heading 1'] => h1:fresh`, `b => strong`, `r.Code => code`,
   `comment-reference => sup`, `highlight[color='yellow'] => mark`,
   `br[type='page'] => hr`, `table.Grid => table.fancy`, `=> !` for ignore.
+  Supports `:fresh`, `:separator('text')` and backslash escape sequences
+  (`\n`, `\r`, `\t`, `\\`, `\'`) inside string literals.
+- `Converter` options: `idPrefix` (namespace HTML ids),
+  `ignoreEmptyParagraphs`, `prettyPrint` (indented HTML),
+  `transformDocument` (callback to rewrite the parsed tree before
+  rendering), plus `Transforms` helpers
+  (`paragraph`, `run`, `elementsOfType`, `elements`, `getDescendants`,
+  `getDescendantsOfType`) for walking and rebuilding the document tree.
 - `extractRawText` for plain-text indexing pipelines.
 - `embedStyleMap` / `readEmbeddedStyleMap` for mammoth-compatible
   in-document style maps.
 - CLI `bin/elephant-php` for `.docx → HTML/Markdown` from the terminal.
+- **Safe by default** for untrusted input — see
+  [Security defaults](#security-defaults).
 
-See [`ROADMAP.md`](ROADMAP.md) for the gap with mammoth.js (mostly DSL
-edge cases, checkbox form fields, and OMML equations — all areas where
-mammoth itself has limitations).
+See [`ROADMAP.md`](ROADMAP.md) for the residual gap with mammoth.js
+(track-changes deletion concatenation, DSL list matchers, OMML
+equations).
 
 ## Installation
 
@@ -124,6 +136,24 @@ $handler = new class implements ImageHandler {
 $converter = new Converter(imageHandler: $handler);
 ```
 
+### Transform the document before rendering
+
+`transformDocument` receives the parsed `Document` and returns a
+(possibly modified) `Document`. Combine with the `Transforms` helpers
+to walk and rebuild the tree without writing recursion by hand:
+
+```php
+use EndlessCreativity\ElephantPhp\Document\Run;
+use EndlessCreativity\ElephantPhp\Document\Transforms;
+
+// Force every run to bold before rendering.
+$converter = new Converter(
+    transformDocument: Transforms::run(
+        static fn (Run $r): Run => new Run(children: $r->children, isBold: true),
+    ),
+);
+```
+
 ### Embedded style map (read / write)
 
 Mammoth supports embedding the style map as a part of the docx itself
@@ -148,6 +178,34 @@ vendor/bin/elephant-php /path/to/file.docx out.html         # → HTML to file
 
 Conversion warnings are written to `stderr` regardless of the output
 destination.
+
+## Security defaults
+
+The library is designed to be safe to point at untrusted `.docx`
+input out of the box. Three behaviours diverge from mammoth.js for
+this reason:
+
+- **`r:link` images are not fetched.** Mammoth resolves
+  `<a:blip r:link="...">` via `fs.readFile` on the relationship
+  target, which is attacker-controlled in any user-uploaded
+  scenario and exposes SSRF, local file inclusion, and `phar://`
+  deserialisation. elephant-php refuses to load `r:link` bytes; the
+  path is preserved on the `Image` node so a `transformDocument`
+  hook can decide what to do.
+- **Hyperlinks with `javascript:` / `vbscript:` / `data:` schemes
+  lose their `<a>` wrapper.** The match is case-insensitive and
+  tolerates leading whitespace and control characters (browsers do
+  too). The link text still renders inline; only the executable
+  wrapper is dropped.
+- **XML with a `DOCTYPE` declaration is rejected**, and `loadXML`
+  is called with `LIBXML_NONET`. Combined, this neutralises XXE
+  and billion-laughs attacks: an entity that's never read can't be
+  expanded. Real OOXML files never declare a DOCTYPE.
+
+Always sanitise the produced HTML before injecting it into a page —
+the library escapes attribute values and text content, but it does
+not run a full HTML sanitiser, and downstream contexts may have
+stricter requirements (e.g., CSP that forbids inline `<sup>`).
 
 ## Warnings on real-world documents
 
