@@ -17,9 +17,13 @@ final class StylesReader
 {
     public static function readFromXml(Element $root): Styles
     {
+        /** @var array<string, Style> $paragraphStyles */
         $paragraphStyles = [];
+        /** @var array<string, Style> $characterStyles */
         $characterStyles = [];
+        /** @var array<string, Style> $tableStyles */
         $tableStyles = [];
+        /** @var array<string, string> $numberingStyleNumIdByStyleId */
         $numberingStyleNumIdByStyleId = [];
 
         foreach ($root->getElementsByTagName('w:style') as $styleElement) {
