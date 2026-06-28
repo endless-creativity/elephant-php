@@ -65,6 +65,12 @@ final class DocumentConverter
         // identical because browsers collapse the added whitespace
         // outside of `<pre>`.
         private readonly bool $prettyPrint = false,
+        // When true (the default), runs marked with the `w:vanish`
+        // ("Hidden") font effect are dropped, matching how Word renders
+        // them on screen and in print. This diverges from mammoth.js,
+        // which keeps hidden text. Set to false to emit hidden runs as
+        // ordinary text.
+        private readonly bool $ignoreHiddenText = true,
     ) {
         $this->styleMap = $styleMap ?? StyleMap::default();
         $this->comments = new Comments();
@@ -669,6 +675,10 @@ final class DocumentConverter
      */
     private function convertRun(Run $run, array &$messages): array
     {
+        if ($this->ignoreHiddenText && $run->isHidden) {
+            return [];
+        }
+
         $nodes = $this->convertNodes($run->children, $messages);
 
         // Inline styling wrappers, innermost first to outermost, matching

@@ -11,6 +11,27 @@ Tracked in `ROADMAP.md`. Highlights still pending: DSL list
 matchers (`p:unordered-list(N)`); custom `underline` mappers; CLI
 `--style-map FILE`; track-changes deletion concatenation.
 
+## [0.4.0] — 2026-06-28
+
+### Added
+
+- **Hidden-text handling**: runs carrying the `w:vanish` ("Hidden")
+  font effect are now parsed into a new `Run::$isHidden` flag, and a
+  `Converter` / `DocumentConverter` option `ignoreHiddenText` controls
+  whether they are rendered. The `w:vanish` element follows the usual
+  boolean toggle rules (`w:val="false"` / `"0"` disables the effect).
+
+### Changed
+
+- **Hidden text is dropped by default**: with `ignoreHiddenText` on
+  (the default), runs marked `w:vanish` are omitted from the HTML and
+  Markdown output, so it matches what Word shows on screen and in
+  print. The parsed `Document` still keeps the runs (flagged
+  `isHidden`) so `transformDocument` callbacks can inspect them. This
+  diverges from mammoth.js, which keeps hidden text. Pass
+  `ignoreHiddenText: false` to restore the previous behaviour and emit
+  hidden runs as ordinary text.
+
 ## [0.3.1] — 2026-04-28
 
 ### Fixed

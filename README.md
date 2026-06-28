@@ -36,6 +36,7 @@
   (`\n`, `\r`, `\t`, `\\`, `\'`) inside string literals.
 - `Converter` options: `idPrefix` (namespace HTML ids),
   `ignoreEmptyParagraphs`, `prettyPrint` (indented HTML),
+  `ignoreHiddenText` (drop `w:vanish` "Hidden" runs, on by default),
   `transformDocument` (callback to rewrite the parsed tree before
   rendering), plus `Transforms` helpers
   (`paragraph`, `run`, `elementsOfType`, `elements`, `getDescendants`,

@@ -88,6 +88,11 @@ final class Converter
         // for block elements. Affects only `convertToHtml`; ignored by
         // Markdown and raw-text conversion.
         private readonly bool $prettyPrint = false,
+        // When true (the default), runs carrying the `w:vanish`
+        // ("Hidden") font effect are dropped so the output matches what
+        // Word shows on screen. This diverges from mammoth.js, which
+        // keeps hidden text. Set to false to emit hidden runs as text.
+        private readonly bool $ignoreHiddenText = true,
         // Optional callback that receives the parsed `Document` and
         // returns a (typically modified) `Document` to convert in its
         // place. Mirrors mammoth's `transformDocument` hook -- useful
@@ -275,6 +280,7 @@ final class Converter
             idPrefix: $this->idPrefix,
             ignoreEmptyParagraphs: $this->ignoreEmptyParagraphs,
             prettyPrint: $this->prettyPrint,
+            ignoreHiddenText: $this->ignoreHiddenText,
         );
         $htmlResult = $write($converter, $document);
 

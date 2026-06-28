@@ -39,6 +39,7 @@ it('reads a run with no rPr as having all flags false and Baseline alignment', f
     expect($run->isStrikethrough)->toBeFalse();
     expect($run->isAllCaps)->toBeFalse();
     expect($run->isSmallCaps)->toBeFalse();
+    expect($run->isHidden)->toBeFalse();
     expect($run->verticalAlignment)->toBe(VerticalAlignment::Baseline);
 });
 
@@ -49,6 +50,7 @@ dataset('booleanRunProperties', [
     'isStrikethrough' => ['isStrikethrough', 'w:strike'],
     'isAllCaps' => ['isAllCaps', 'w:caps'],
     'isSmallCaps' => ['isSmallCaps', 'w:smallCaps'],
+    'isHidden' => ['isHidden', 'w:vanish'],
 ]);
 
 it('treats a bare property element as enabling the flag (except w:u which needs a value)', function (string $property, string $tagName): void {

@@ -332,6 +332,7 @@ final class BodyReader
                 isStrikethrough: self::readBoolean($properties->first('w:strike')),
                 isAllCaps: self::readBoolean($properties->first('w:caps')),
                 isSmallCaps: self::readBoolean($properties->first('w:smallCaps')),
+                isHidden: self::readBoolean($properties->first('w:vanish')),
                 verticalAlignment: self::readVerticalAlignment($properties->first('w:vertAlign')),
                 highlight: self::readHighlight($properties->first('w:highlight')),
                 font: $properties->first('w:rFonts')?->attribute('w:ascii'),
