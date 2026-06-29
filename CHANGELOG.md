@@ -11,6 +11,19 @@ Tracked in `ROADMAP.md`. Highlights still pending: DSL list
 matchers (`p:unordered-list(N)`); custom `underline` mappers; CLI
 `--style-map FILE`; track-changes deletion concatenation.
 
+## [0.4.1] — 2026-06-28
+
+### Fixed
+
+- **PHPStan 2.2 compatibility in `StylesReader`**: under PHPStan 2.2's
+  stricter empty-array-shape inference, the style-deduplication
+  `isset()` checks were flagged as `isset.offset` ("offset on
+  `array{}`") and `booleanAnd.alwaysFalse`. The paragraph, character
+  and table style maps are now explicitly typed as
+  `array<string, Style>` (and the numbering pointer map as
+  `array<string, string>`) so the lookups are recognised. No
+  behavioural change.
+
 ## [0.4.0] — 2026-06-28
 
 ### Added
