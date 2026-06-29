@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/elephant-php-logo.png" alt="elephant-php" width="480">
+  <img src="assets/elephant-php-logo-alpha.png" alt="elephant-php" width="480">
 </p>
 
 # elephant-php
@@ -9,13 +9,16 @@
 [![License](https://img.shields.io/badge/license-BSD--2--Clause-blue.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/endless-creativity/elephant-php)](composer.json)
 
-> Convert `.docx` to semantic HTML and Markdown in pure PHP. Inspired by
-> [mammoth.js](https://github.com/mwilliamson/mammoth.js).
+**Convert `.docx` files to Markdown or semantic HTML, in pure PHP.**
+No external binaries (LibreOffice, Pandoc), no heavyweight library
+(PHPWord), no shell-out — just the standard PHP extensions.
+elephant-php reads the *structure* of a document — headings, lists,
+tables, footnotes, images — instead of trying to reproduce Word's
+visual formatting.
 
-> **Attribution.** This library is an independent PHP port inspired by
-> mammoth.js by Michael Williamson. It adopts mammoth's core philosophy
-> (extract semantics, not formatting) and style-mapping DSL. It is not
-> affiliated with or endorsed by the mammoth.js project.
+It is a PHP port of
+[mammoth.js](https://github.com/mwilliamson/mammoth.js) and adopts its
+core philosophy and style-mapping DSL.
 
 ## Features
 
@@ -237,6 +240,13 @@ Project guidance and porting conventions live in
 [`CLAUDE.md`](CLAUDE.md). Limitations and roadmap items vs mammoth in
 [`ROADMAP.md`](ROADMAP.md). Contributions welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Attribution
+
+elephant-php is an independent PHP port inspired by mammoth.js by
+Michael Williamson. It adopts mammoth's core philosophy (extract
+semantics, not formatting) and style-mapping DSL. It is not affiliated
+with or endorsed by the mammoth.js project.
 
 ## License
 

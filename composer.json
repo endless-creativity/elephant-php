@@ -1,6 +1,6 @@
 {
     "name": "endless-creativity/elephant-php",
-    "description": "An elephant never forgets your document structure — convert .docx to semantic HTML and Markdown in pure PHP. Inspired by mammoth.js.",
+    "description": "Convert .docx to Markdown or semantic HTML — no external binaries or heavy dependencies.",
     "type": "library",
     "license": "BSD-2-Clause",
     "keywords": ["docx", "word", "markdown", "html", "converter", "office", "ooxml", "document"],
