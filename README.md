@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/elephant-php-logo.png" alt="elephant-php" width="480">
+</p>
+
 # elephant-php
 
 [![CI](https://github.com/endless-creativity/elephant-php/actions/workflows/ci.yml/badge.svg)](https://github.com/endless-creativity/elephant-php/actions/workflows/ci.yml)
@@ -5,8 +9,7 @@
 [![License](https://img.shields.io/badge/license-BSD--2--Clause-blue.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/endless-creativity/elephant-php)](composer.json)
 
-> An elephant never forgets your document structure — convert `.docx` to
-> semantic HTML and Markdown in pure PHP. Inspired by
+> Convert `.docx` to semantic HTML and Markdown in pure PHP. Inspired by
 > [mammoth.js](https://github.com/mwilliamson/mammoth.js).
 
 > **Attribution.** This library is an independent PHP port inspired by
