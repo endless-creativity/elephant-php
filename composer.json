@@ -1,6 +1,6 @@
 {
     "name": "endless-creativity/elephant-php",
-    "description": "Convert .docx to Markdown or semantic HTML — no external binaries or heavy dependencies.",
+    "description": "Convert .docx to Markdown or semantic HTML — no external dependencies.",
     "type": "library",
     "license": "BSD-2-Clause",
     "keywords": ["docx", "word", "markdown", "html", "converter", "office", "ooxml", "document"],
