@@ -179,6 +179,13 @@ final class MarkdownWriter
 
     private string $output = '';
 
+    /**
+     * Set on the writers that render a single table cell. A table nested
+     * inside a cell cannot be expressed as a GFM table, so it falls back
+     * to the generic walk and its content is flattened into the cell.
+     */
+    private bool $inTableCell = false;
+
     /** @var list<array{end: string|Closure(): ?string, list: ?array{isOrdered: bool, indent: int, count: int}}> */
     private array $stack = [];
 
@@ -201,6 +208,11 @@ final class MarkdownWriter
                 continue;
             }
             if ($node instanceof Element) {
+                if ($node->tag->tagName === 'table' && ! $this->inTableCell) {
+                    $this->writeTable($node);
+
+                    continue;
+                }
                 if ($node->isVoid()) {
                     $this->openElement($node);
                     $this->closeElement();
@@ -368,6 +380,123 @@ final class MarkdownWriter
                 return null;
             },
         ];
+    }
+
+    /**
+     * Renders a table as a GFM pipe table. Mammoth's markdown writer has no
+     * table support and flattens every cell into its own paragraph, which
+     * loses the row/column structure entirely.
+     *
+     * GFM requires exactly one header row, so the first row becomes the
+     * header whether or not it came from <thead>. Rows are padded to the
+     * widest row, colspan is expanded into empty cells after the spanning
+     * one, and columns covered by a rowspan from a previous row get an
+     * empty cell, so every value stays under its own column.
+     */
+    private function writeTable(Element $table): void
+    {
+        $grid = [];
+        $pendingRowSpans = [];
+        foreach (self::tableRows($table) as $row) {
+            $cells = [];
+            $column = 0;
+            foreach ($row->children as $cell) {
+                if (! $cell instanceof Element || ($cell->tag->tagName !== 'td' && $cell->tag->tagName !== 'th')) {
+                    continue;
+                }
+                while (($pendingRowSpans[$column] ?? 0) > 0) {
+                    $pendingRowSpans[$column]--;
+                    $cells[$column++] = '';
+                }
+                $colSpan = max(1, (int) ($cell->tag->attributes['colspan'] ?? 1));
+                $rowSpan = max(1, (int) ($cell->tag->attributes['rowspan'] ?? 1));
+                for ($offset = 0; $offset < $colSpan; $offset++) {
+                    $cells[$column] = $offset === 0 ? $this->renderTableCell($cell) : '';
+                    if ($rowSpan > 1) {
+                        $pendingRowSpans[$column] = $rowSpan - 1;
+                    }
+                    $column++;
+                }
+            }
+            foreach ($pendingRowSpans as $spannedColumn => $remaining) {
+                if ($spannedColumn >= $column && $remaining > 0) {
+                    $pendingRowSpans[$spannedColumn]--;
+                    $cells[$spannedColumn] = '';
+                }
+            }
+            ksort($cells);
+            $grid[] = $cells;
+        }
+
+        if ($grid === []) {
+            return;
+        }
+
+        $width = max(1, ...array_map(
+            static fn (array $cells): int => $cells === [] ? 0 : max(array_keys($cells)) + 1,
+            $grid,
+        ));
+
+        if ($this->output !== '' && ! str_ends_with($this->output, "\n\n")) {
+            $this->output .= str_ends_with($this->output, "\n") ? "\n" : "\n\n";
+        }
+
+        foreach ($grid as $index => $cells) {
+            $line = '|';
+            for ($column = 0; $column < $width; $column++) {
+                $line .= ' '.($cells[$column] ?? '').' |';
+            }
+            $this->output .= $line."\n";
+            if ($index === 0) {
+                $this->output .= '|'.str_repeat(' --- |', $width)."\n";
+            }
+        }
+        $this->output .= "\n";
+    }
+
+    /**
+     * Rows of a table in document order, looking through <thead>/<tbody>.
+     *
+     * @return list<Element>
+     */
+    private static function tableRows(Element $table): array
+    {
+        $rows = [];
+        foreach ($table->children as $child) {
+            if (! $child instanceof Element) {
+                continue;
+            }
+            if ($child->tag->tagName === 'tr') {
+                $rows[] = $child;
+            } elseif ($child->tag->tagName === 'thead' || $child->tag->tagName === 'tbody') {
+                foreach (self::tableRows($child) as $row) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * A GFM cell must fit on one line: the cell is rendered on its own,
+     * then line breaks between blocks become <br> (the only way GFM keeps
+     * a line break inside a cell) and pipes are escaped so they don't
+     * split the cell.
+     */
+    private function renderTableCell(Element $cell): string
+    {
+        $writer = new self();
+        $writer->inTableCell = true;
+        $writer->writeNodes($cell->children);
+
+        $lines = preg_split('/\n+/', self::stripLineLeadingSpaces($writer->output)) ?: [];
+        $lines = array_values(array_filter(
+            array_map(static fn (string $line): string => rtrim($line), $lines),
+            static fn (string $line): bool => $line !== '',
+        ));
+
+        return str_replace('|', '\\|', implode('<br>', $lines));
     }
 
     /**

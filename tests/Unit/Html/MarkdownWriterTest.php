@@ -352,3 +352,136 @@ it('emits no markup for unknown tags but still walks children', function (): voi
         el('section', children: [el('p', children: [txt('hi')])]),
     ]))->toBe("hi\n\n");
 });
+
+/**
+ * @param  list<list<string>>  $rows
+ */
+function mdTable(array $rows, string $cellTag = 'td'): Element
+{
+    return el('table', children: array_map(
+        static fn (array $cells): Element => el('tr', children: array_map(
+            static fn (string $cell): Element => el($cellTag, children: $cell === '' ? [] : [el('p', children: [txt($cell)])]),
+            $cells,
+        )),
+        $rows,
+    ));
+}
+
+it('renders a table as a GFM pipe table using the first row as header', function (): void {
+    expect(MarkdownWriter::write([mdTable([['A', 'B'], ['C', 'D']])]))->toBe(
+        "| A | B |\n"
+        ."| --- | --- |\n"
+        ."| C | D |\n\n",
+    );
+});
+
+it('keeps empty cells so columns stay aligned', function (): void {
+    expect(MarkdownWriter::write([mdTable([['', 'Col 1', 'Col 2'], ['A', 'Yes', 'No']])]))->toBe(
+        "|  | Col 1 | Col 2 |\n"
+        ."| --- | --- | --- |\n"
+        ."| A | Yes | No |\n\n",
+    );
+});
+
+it('uses <thead> rows of <th> cells as the table header', function (): void {
+    $table = el('table', children: [
+        el('thead', children: [el('tr', children: [
+            el('th', children: [el('p', children: [txt('h1')])]),
+            el('th', children: [el('p', children: [txt('h2')])]),
+        ])]),
+        el('tbody', children: [el('tr', children: [
+            el('td', children: [el('p', children: [txt('a')])]),
+            el('td', children: [el('p', children: [txt('b')])]),
+        ])]),
+    ]);
+
+    expect(MarkdownWriter::write([$table]))->toBe(
+        "| h1 | h2 |\n"
+        ."| --- | --- |\n"
+        ."| a | b |\n\n",
+    );
+});
+
+it('pads short rows to the widest row', function (): void {
+    expect(MarkdownWriter::write([mdTable([['A'], ['B', 'C', 'D']])]))->toBe(
+        "| A |  |  |\n"
+        ."| --- | --- | --- |\n"
+        ."| B | C | D |\n\n",
+    );
+});
+
+it('expands colspan into trailing empty cells', function (): void {
+    $table = el('table', children: [
+        el('tr', children: [
+            el('td', ['colspan' => '2'], [el('p', children: [txt('wide')])]),
+            el('td', children: [el('p', children: [txt('x')])]),
+        ]),
+        el('tr', children: [
+            el('td', children: [el('p', children: [txt('a')])]),
+            el('td', children: [el('p', children: [txt('b')])]),
+            el('td', children: [el('p', children: [txt('c')])]),
+        ]),
+    ]);
+
+    expect(MarkdownWriter::write([$table]))->toBe(
+        "| wide |  | x |\n"
+        ."| --- | --- | --- |\n"
+        ."| a | b | c |\n\n",
+    );
+});
+
+it('leaves an empty cell where a rowspan covers the column', function (): void {
+    $table = el('table', children: [
+        el('tr', children: [
+            el('td', children: [el('p', children: [txt('h1')])]),
+            el('td', children: [el('p', children: [txt('h2')])]),
+        ]),
+        el('tr', children: [
+            el('td', ['rowspan' => '2'], [el('p', children: [txt('tall')])]),
+            el('td', children: [el('p', children: [txt('a')])]),
+        ]),
+        el('tr', children: [
+            el('td', children: [el('p', children: [txt('b')])]),
+        ]),
+    ]);
+
+    expect(MarkdownWriter::write([$table]))->toBe(
+        "| h1 | h2 |\n"
+        ."| --- | --- |\n"
+        ."| tall | a |\n"
+        ."|  | b |\n\n",
+    );
+});
+
+it('keeps cell content on one line, joining blocks with <br>', function (): void {
+    $table = el('table', children: [el('tr', children: [
+        el('td', children: [
+            el('p', children: [txt('first')]),
+            el('p', children: [el('strong', children: [txt('second')])]),
+        ]),
+    ])]);
+
+    expect(MarkdownWriter::write([$table]))->toBe(
+        "| first<br>**second** |\n"
+        ."| --- |\n\n",
+    );
+});
+
+it('escapes pipes inside cells', function (): void {
+    expect(MarkdownWriter::write([mdTable([['a | b']])]))->toBe(
+        "| a \\| b |\n"
+        ."| --- |\n\n",
+    );
+});
+
+it('separates a table from surrounding paragraphs with blank lines', function (): void {
+    expect(MarkdownWriter::write([
+        el('p', children: [txt('Before')]),
+        mdTable([['A']]),
+        el('p', children: [txt('After')]),
+    ]))->toBe("Before\n\n| A |\n| --- |\n\nAfter\n\n");
+});
+
+it('renders nothing for a table without rows', function (): void {
+    expect(MarkdownWriter::write([el('table')]))->toBe('');
+});

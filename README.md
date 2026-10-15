@@ -34,6 +34,9 @@ core philosophy and style-mapping DSL.
   legacy hyperlink complex fields (`w:fldChar`), checkbox form fields
   (SDT `wordml:checkbox` and `FORMCHECKBOX`) rendered as
   `<input type="checkbox">` in HTML and `[x]` / `[ ]` in Markdown.
+- Tables in Markdown as GFM pipe tables (first row as header, `colspan` /
+  `rowspan` padded with empty cells, multi-block cells joined with
+  `<br>`); mammoth.js flattens them into plain paragraphs.
 - Mammoth-compatible style-mapping DSL:
   `p[style-name='Heading 1'] => h1:fresh`, `b => strong`, `r.Code => code`,
   `comment-reference => sup`, `highlight[color='yellow'] => mark`,
