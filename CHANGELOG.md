@@ -11,6 +11,28 @@ Tracked in `ROADMAP.md`. Highlights still pending: DSL list
 matchers (`p:unordered-list(N)`); custom `underline` mappers; CLI
 `--style-map FILE`; track-changes deletion concatenation.
 
+## [0.5.0] — 2026-10-15
+
+### Added
+
+- **Markdown tables**: `convertToMarkdown` renders tables as GFM pipe
+  tables instead of flattening every cell into its own paragraph (the
+  mammoth.js behaviour). The first row is the header, as GFM requires
+  exactly one. Rows are padded to the widest row; `colspan` and
+  `rowspan` become empty cells so every value stays under its column.
+  A cell with several blocks is kept on one line by joining them with
+  `<br>`, and `|` inside cells is escaped. A table nested inside a cell
+  is flattened into that cell. This changes Markdown output for every
+  document containing tables.
+
+### Fixed
+
+- **Empty table cells are no longer dropped**: an empty cell (or row, or
+  table) was removed during HTML simplification, shifting every
+  following cell of the row into the wrong column. Tables, rows and
+  cells now carry mammoth's `forceWrite` marker, so an empty cell is
+  emitted as `<td></td>` exactly as mammoth.js does.
+
 ## [0.4.1] — 2026-06-28
 
 ### Fixed
