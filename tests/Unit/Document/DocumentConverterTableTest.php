@@ -113,3 +113,42 @@ it('emits rowspan for a vertically merged anchor cell', function (): void {
         .'</table>',
     );
 });
+
+it('preserves empty cells so columns stay aligned', function (): void {
+    $table = new Table(children: [
+        new TableRow(children: [cellWith(''), cellWith('Top right')]),
+    ]);
+
+    expect(htmlOfTable($table))->toBe(
+        '<table><tr><td></td><td><p>Top right</p></td></tr></table>',
+    );
+});
+
+it('preserves empty rows', function (): void {
+    $table = new Table(children: [
+        new TableRow(children: [cellWith('Row 1')]),
+        new TableRow(children: []),
+    ]);
+
+    expect(htmlOfTable($table))->toBe(
+        '<table><tr><td><p>Row 1</p></td></tr><tr></tr></table>',
+    );
+});
+
+it('preserves an empty table', function (): void {
+    expect(htmlOfTable(new Table(children: [])))->toBe('<table></table>');
+});
+
+it('preserves empty header cells', function (): void {
+    $table = new Table(children: [
+        new TableRow(children: [cellWith(''), cellWith('h')], isHeader: true),
+        new TableRow(children: [cellWith('a'), cellWith('b')]),
+    ]);
+
+    expect(htmlOfTable($table))->toBe(
+        '<table>'
+        .'<thead><tr><th></th><th><p>h</p></th></tr></thead>'
+        .'<tbody><tr><td><p>a</p></td><td><p>b</p></td></tr></tbody>'
+        .'</table>',
+    );
+});

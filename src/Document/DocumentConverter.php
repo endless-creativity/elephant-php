@@ -313,14 +313,14 @@ final class DocumentConverter
         if ($node instanceof TableRow) {
             return [new HtmlElement(
                 tag: new Tag(tagName: 'tr'),
-                children: $this->convertTableRowChildren($node, $messages),
+                children: [new ForceWrite(), ...$this->convertTableRowChildren($node, $messages)],
             )];
         }
 
         if ($node instanceof TableCell) {
             return [new HtmlElement(
                 tag: new Tag(tagName: 'td', attributes: self::tableCellAttributes($node)),
-                children: $this->convertNodes($node->children, $messages),
+                children: [new ForceWrite(), ...$this->convertNodes($node->children, $messages)],
             )];
         }
 
@@ -457,6 +457,11 @@ final class DocumentConverter
             }
         }
 
+        // Mammoth prepends forceWrite to the table, its rows and its cells
+        // so empty ones survive simplification: dropping an empty cell
+        // would shift every following cell into the wrong column.
+        array_unshift($bodyChildren, new ForceWrite());
+
         $mapping = $this->styleMap->findForTable($table);
         if ($mapping !== null) {
             return $mapping->to->applyTo($bodyChildren);
@@ -495,7 +500,7 @@ final class DocumentConverter
             if ($child instanceof TableCell) {
                 $cells[] = new HtmlElement(
                     tag: new Tag(tagName: $tagName, attributes: self::tableCellAttributes($child)),
-                    children: $this->convertNodes($child->children, $messages),
+                    children: [new ForceWrite(), ...$this->convertNodes($child->children, $messages)],
                 );
             } else {
                 foreach ($this->convertNode($child, $messages) as $node) {
